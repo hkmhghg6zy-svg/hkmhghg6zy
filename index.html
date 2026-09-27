@@ -445,9 +445,16 @@
     .nudge-copy span { color: var(--muted); font-size: 12px; line-height: 1.35; }
     .nudge-close { display: grid; width: 24px; height: 24px; place-items: center; align-self: start; border: 0; border-radius: 6px; color: var(--faint); background: transparent; cursor: pointer; font-size: 18px; line-height: 1; }
     .nudge-close:hover { color: var(--ink); background: rgba(169, 197, 161, 0.15); }
+    .nudge-trigger { position: fixed; right: 22px; bottom: 22px; z-index: 21; display: grid; width: 42px; height: 42px; place-items: center; border: 1px solid rgba(118, 149, 111, 0.42); border-radius: 50%; color: var(--ink); background: rgba(255, 253, 247, 0.96); box-shadow: 0 10px 25px rgba(76, 64, 46, 0.16); cursor: pointer; transition: 180ms ease; }
+    .nudge-trigger:hover, .nudge-trigger:focus-visible { border-color: var(--mint-deep); background: #fffdf7; outline: 0; transform: translateY(-3px) scale(1.04); }
+    .trigger-cup { position: relative; z-index: 2; display: block; font-size: 23px; line-height: 1; animation: cup-bob 2.2s ease-in-out infinite; }
+    .trigger-steam { position: absolute; z-index: 1; bottom: 22px; width: 2px; height: 8px; border-radius: 999px; background: rgba(118, 149, 111, 0.52); transform-origin: bottom center; animation: trigger-steam-rise 1.8s ease-in-out infinite; }
+    .trigger-steam.steam-one { left: 16px; }
+    .trigger-steam.steam-two { left: 23px; height: 7px; animation-delay: 0.65s; }
 
     @keyframes cup-bob { 0%, 100% { transform: translateY(1px) rotate(-3deg); } 50% { transform: translateY(-3px) rotate(3deg); } }
     @keyframes steam-rise { 0% { opacity: 0; transform: translateY(4px) scaleY(0.65); } 35%, 70% { opacity: 0.75; } 100% { opacity: 0; transform: translateY(-7px) scaleY(1.05); } }
+    @keyframes trigger-steam-rise { 0% { opacity: 0; transform: translateY(3px) scaleY(0.65); } 35%, 70% { opacity: 0.75; } 100% { opacity: 0; transform: translateY(-5px) scaleY(1.05); } }
 
     .toast { position: fixed; right: 22px; bottom: 22px; z-index: 20; padding: 10px 13px; border: 1px solid rgba(118, 149, 111, 0.32); border-radius: 9px; color: var(--mint-deep); background: #fffdf7; box-shadow: var(--shadow); font-family: var(--mono); font-size: 11px; opacity: 0; pointer-events: none; transform: translateY(8px); transition: 180ms ease; }
     .toast.show { opacity: 1; transform: translateY(0); }
@@ -472,6 +479,7 @@
       .top-actions { justify-content: flex-start; margin-top: 18px; }
       .clock-card { text-align: left; }
       .study-nudge { right: 16px; bottom: 70px; }
+      .nudge-trigger { right: 16px; bottom: 18px; }
       .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .calendar-cell { min-height: 67px; padding: 5px; }
       .calendar-weekdays span { padding: 0 5px; font-size: 9px; }
@@ -659,10 +667,16 @@
     </div>
     <div class="nudge-copy">
       <strong>little study pause</strong>
-      <span id="nudge-message">Keep on going — you’re doing great.</span>
+    <span id="nudge-message">Keep on going — you’re doing great.</span>
     </div>
     <button class="nudge-close" type="button" data-dismiss-nudge aria-label="Dismiss encouragement">×</button>
   </aside>
+
+  <button class="nudge-trigger" id="nudge-trigger" type="button" aria-label="Show a study encouragement" title="Need a little encouragement?">
+    <span class="trigger-steam steam-one" aria-hidden="true"></span>
+    <span class="trigger-steam steam-two" aria-hidden="true"></span>
+    <span class="trigger-cup" aria-hidden="true">☕</span>
+  </button>
 
   <dialog id="event-dialog">
     <form method="dialog" id="event-form">
@@ -1350,6 +1364,9 @@
       $("#clear-confirm-checkbox").addEventListener("change", (event) => {
         $("#confirm-clear").disabled = !event.target.checked;
       });
+      $("#nudge-trigger").addEventListener("mouseenter", showEncouragement);
+      $("#nudge-trigger").addEventListener("focus", showEncouragement);
+      $("#nudge-trigger").addEventListener("click", showEncouragement);
 
       $("#calendar-file-input").addEventListener("change", async (event) => {
         const file = event.target.files?.[0];
