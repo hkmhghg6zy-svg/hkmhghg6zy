@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#f2eee5" />
   <title>study planner</title>
+  <link rel="icon" type="image/png" href="Favicom.png" />
   <style>
     :root {
       color-scheme: light;
@@ -381,6 +382,24 @@
 
     .bottom-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 0.9fr); gap: 16px; margin-top: 16px; }
 
+    .classes-panel { margin-top: 16px; }
+    .classes-panel-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+    .classes-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(265px, 1fr)); gap: 12px; margin-top: 17px; }
+    .class-card { min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 11px; background: rgba(255, 253, 247, 0.58); }
+    .class-card-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 8px; }
+    .class-select { display: grid; gap: 4px; min-width: 0; padding: 0; border: 0; color: inherit; background: transparent; cursor: pointer; text-align: left; }
+    .class-select:hover .class-title { color: var(--mint-deep); }
+    .class-title { overflow: hidden; color: var(--ink); font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+    .class-meta { overflow: hidden; color: var(--faint); font-family: var(--mono); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .class-card .edit-button { flex: 0 0 auto; }
+    .class-notes { display: block; width: 100%; min-height: 112px; margin-top: 12px; resize: vertical; padding: 10px 11px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: rgba(255, 253, 247, 0.72); font-family: var(--mono); font-size: 11px; line-height: 1.55; }
+    .class-notes:focus { border-color: var(--mint-deep); outline: 0; }
+    .class-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; color: var(--faint); font-size: 10px; }
+    .class-status { font-family: var(--mono); }
+    .class-calendar-link { padding: 0; border: 0; color: var(--mint-deep); background: transparent; cursor: pointer; font-family: var(--mono); font-size: 10px; }
+    .class-calendar-link:hover { text-decoration: underline; }
+    .classes-empty { grid-column: 1 / -1; padding: 17px 5px; color: var(--faint); font-size: 12px; }
+
     .tasks-panel, .notes-panel { min-height: 330px; }
     .task-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
     .filter-list { display: flex; gap: 4px; }
@@ -445,9 +464,16 @@
     .nudge-copy span { color: var(--muted); font-size: 12px; line-height: 1.35; }
     .nudge-close { display: grid; width: 24px; height: 24px; place-items: center; align-self: start; border: 0; border-radius: 6px; color: var(--faint); background: transparent; cursor: pointer; font-size: 18px; line-height: 1; }
     .nudge-close:hover { color: var(--ink); background: rgba(169, 197, 161, 0.15); }
+    .nudge-trigger { position: fixed; right: 22px; bottom: 22px; z-index: 21; display: grid; width: 42px; height: 42px; place-items: center; border: 1px solid rgba(118, 149, 111, 0.42); border-radius: 50%; color: var(--ink); background: rgba(255, 253, 247, 0.96); box-shadow: 0 10px 25px rgba(76, 64, 46, 0.16); cursor: pointer; transition: 180ms ease; }
+    .nudge-trigger:hover, .nudge-trigger:focus-visible { border-color: var(--mint-deep); background: #fffdf7; outline: 0; transform: translateY(-3px) scale(1.04); }
+    .trigger-cup { position: relative; z-index: 2; display: block; font-size: 23px; line-height: 1; animation: cup-bob 2.2s ease-in-out infinite; }
+    .trigger-steam { position: absolute; z-index: 1; bottom: 22px; width: 2px; height: 8px; border-radius: 999px; background: rgba(118, 149, 111, 0.52); transform-origin: bottom center; animation: trigger-steam-rise 1.8s ease-in-out infinite; }
+    .trigger-steam.steam-one { left: 16px; }
+    .trigger-steam.steam-two { left: 23px; height: 7px; animation-delay: 0.65s; }
 
     @keyframes cup-bob { 0%, 100% { transform: translateY(1px) rotate(-3deg); } 50% { transform: translateY(-3px) rotate(3deg); } }
     @keyframes steam-rise { 0% { opacity: 0; transform: translateY(4px) scaleY(0.65); } 35%, 70% { opacity: 0.75; } 100% { opacity: 0; transform: translateY(-7px) scaleY(1.05); } }
+    @keyframes trigger-steam-rise { 0% { opacity: 0; transform: translateY(3px) scaleY(0.65); } 35%, 70% { opacity: 0.75; } 100% { opacity: 0; transform: translateY(-5px) scaleY(1.05); } }
 
     .toast { position: fixed; right: 22px; bottom: 22px; z-index: 20; padding: 10px 13px; border: 1px solid rgba(118, 149, 111, 0.32); border-radius: 9px; color: var(--mint-deep); background: #fffdf7; box-shadow: var(--shadow); font-family: var(--mono); font-size: 11px; opacity: 0; pointer-events: none; transform: translateY(8px); transition: 180ms ease; }
     .toast.show { opacity: 1; transform: translateY(0); }
@@ -472,6 +498,7 @@
       .top-actions { justify-content: flex-start; margin-top: 18px; }
       .clock-card { text-align: left; }
       .study-nudge { right: 16px; bottom: 70px; }
+      .nudge-trigger { right: 16px; bottom: 18px; }
       .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .calendar-cell { min-height: 67px; padding: 5px; }
       .calendar-weekdays span { padding: 0 5px; font-size: 9px; }
@@ -512,6 +539,7 @@
         <nav class="nav-list" aria-label="Main navigation">
           <button class="nav-button active" type="button" data-scroll-to="dashboard"><span class="nav-icon">⌂</span><span>Dashboard</span></button>
           <button class="nav-button" type="button" data-scroll-to="calendar"><span class="nav-icon">□</span><span>Calendar</span></button>
+          <button class="nav-button" type="button" data-scroll-to="classes"><span class="nav-icon">▤</span><span>Classes</span></button>
           <button class="nav-button" type="button" data-scroll-to="tasks"><span class="nav-icon">☑</span><span>To-do list</span></button>
           <button class="nav-button" type="button" data-scroll-to="notes"><span class="nav-icon">✎</span><span>Notes</span></button>
         </nav>
@@ -616,6 +644,20 @@
           </section>
         </div>
 
+        <section class="panel panel-padding classes-panel" id="classes">
+          <div class="panel-heading">
+            <div>
+              <h2>Classes <code>/ lecture notes</code></h2>
+              <p>Only lectures with saved notes appear here — repeating classes stay separate week by week.</p>
+            </div>
+            <div class="classes-panel-actions">
+              <button class="button small ghost" type="button" data-open-class-note>＋ add notes</button>
+              <button class="button small" type="button" data-open-event data-lecture>＋ lecture</button>
+            </div>
+          </div>
+          <div class="classes-list" id="classes-list"></div>
+        </section>
+
         <div class="bottom-grid">
           <section class="panel panel-padding tasks-panel" id="tasks">
             <div class="panel-heading">
@@ -659,10 +701,16 @@
     </div>
     <div class="nudge-copy">
       <strong>little study pause</strong>
-      <span id="nudge-message">Keep on going — you’re doing great.</span>
+    <span id="nudge-message">Keep on going — you’re doing great.</span>
     </div>
     <button class="nudge-close" type="button" data-dismiss-nudge aria-label="Dismiss encouragement">×</button>
   </aside>
+
+  <button class="nudge-trigger" id="nudge-trigger" type="button" aria-label="Show a study encouragement" title="Need a little encouragement?">
+    <span class="trigger-steam steam-one" aria-hidden="true"></span>
+    <span class="trigger-steam steam-two" aria-hidden="true"></span>
+    <span class="trigger-cup" aria-hidden="true">☕</span>
+  </button>
 
   <dialog id="event-dialog">
     <form method="dialog" id="event-form">
@@ -683,6 +731,22 @@
           <div class="form-field full"><label for="event-notes">Notes <span>(optional)</span></label><textarea id="event-notes" name="notes" maxlength="180" placeholder="Room, reading, submission link..."></textarea></div>
         </div>
         <div class="dialog-actions"><button class="button" type="button" data-close-dialog="event-dialog">cancel</button><button class="button primary" id="event-submit" type="submit">save event</button></div>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="class-note-dialog">
+    <form method="dialog" id="class-note-form">
+      <div class="dialog-inner">
+        <div class="dialog-heading">
+          <div><h2>Add class notes</h2><p>Choose the exact lecture occurrence you want to write about.</p></div>
+          <button class="close-dialog" type="button" data-close-dialog="class-note-dialog" aria-label="Close">×</button>
+        </div>
+        <div class="form-grid">
+          <div class="form-field full"><label for="class-note-occurrence">Lecture</label><select id="class-note-occurrence" name="occurrence" required></select></div>
+          <div class="form-field full"><label for="class-note-input">Notes from this lecture</label><textarea id="class-note-input" name="notes" placeholder="What did you learn? What should you revisit?"></textarea></div>
+        </div>
+        <div class="dialog-actions"><button class="button" type="button" data-close-dialog="class-note-dialog">cancel</button><button class="button primary" type="submit">save notes</button></div>
       </div>
     </form>
   </dialog>
@@ -726,6 +790,7 @@
   <script>
     (() => {
       const STORAGE_KEY = "study-planner-v2";
+      const CLASS_NOTES_VERSION = 3;
       const today = startOfDay(new Date());
       let selectedDate = toDateKey(today);
       let calendarCursor = new Date(today.getFullYear(), today.getMonth(), 1, 12);
@@ -780,13 +845,24 @@
       }
 
       function emptyState() {
-        return { events: [], tasks: [], notes: "" };
+        return { events: [], tasks: [], notes: "", classNotes: {}, classNotesVersion: CLASS_NOTES_VERSION };
       }
 
       function loadState() {
         try {
           const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-          if (saved && Array.isArray(saved.events) && Array.isArray(saved.tasks)) return saved;
+          if (saved && Array.isArray(saved.events) && Array.isArray(saved.tasks)) {
+            const loaded = {
+              ...saved,
+              classNotes: saved.classNotes && typeof saved.classNotes === "object" && !Array.isArray(saved.classNotes) ? saved.classNotes : {}
+            };
+            // Start the per-lecture notes system cleanly; calendar, task and general note data stay intact.
+            if (loaded.classNotesVersion !== CLASS_NOTES_VERSION) {
+              loaded.classNotes = {};
+              loaded.classNotesVersion = CLASS_NOTES_VERSION;
+            }
+            return loaded;
+          }
         } catch (error) {
           console.warn("Could not load planner data", error);
         }
@@ -1139,6 +1215,143 @@
         }).join("");
       }
 
+      function classNoteKey(event, dateKey) {
+        return event.repeat ? `${event.id}::${dateKey}` : event.id;
+      }
+
+      function classNoteValue(event, dateKey) {
+        const noteKey = classNoteKey(event, dateKey);
+        return Object.prototype.hasOwnProperty.call(state.classNotes, noteKey) ? state.classNotes[noteKey] || "" : "";
+      }
+
+      function classOccurrences(event) {
+        if (!event.repeat) return [{ event, date: event.date }];
+        const first = fromDateKey(event.date);
+        const recentStart = addDays(today, -28);
+        const rollingEnd = addDays(today, 84);
+        const last = event.repeatUntil ? fromDateKey(event.repeatUntil) : (first > rollingEnd ? first : rollingEnd);
+        const firstVisible = event.repeatUntil ? first : (first > recentStart ? first : recentStart);
+        const occurrences = [];
+        for (let date = new Date(first); date <= last; date.setDate(date.getDate() + 7)) {
+          if (date >= firstVisible) occurrences.push({ event, date: toDateKey(date) });
+        }
+        return occurrences;
+      }
+
+      function removeClassNotes(eventId) {
+        Object.keys(state.classNotes || {}).forEach((key) => {
+          if (key === eventId || key.startsWith(`${eventId}::`)) delete state.classNotes[key];
+        });
+      }
+
+      function allClassOccurrences() {
+        return state.events
+          .filter((event) => event.type === "lecture")
+          .flatMap((event) => classOccurrences(event))
+          .sort((a, b) => `${a.date} ${a.event.start || ""} ${a.event.title}`.localeCompare(`${b.date} ${b.event.start || ""} ${b.event.title}`));
+      }
+
+      function classOccurrenceValue(event, dateKey) {
+        return `${event.id}@@${dateKey}`;
+      }
+
+      function findClassOccurrence(value) {
+        const separator = "@@";
+        const splitAt = String(value || "").lastIndexOf(separator);
+        if (splitAt < 1) return null;
+        const eventId = value.slice(0, splitAt);
+        const date = value.slice(splitAt + separator.length);
+        const occurrence = allClassOccurrences().find((item) => item.event.id === eventId && item.date === date);
+        return occurrence || null;
+      }
+
+      function updateClassNoteDialogInput() {
+        const occurrence = findClassOccurrence($("#class-note-occurrence").value);
+        $("#class-note-input").value = occurrence ? classNoteValue(occurrence.event, occurrence.date) : "";
+      }
+
+      function openClassNoteDialog(eventId = "", occurrenceDate = "") {
+        const occurrences = allClassOccurrences();
+        if (!occurrences.length) {
+          showToast("Add a lecture to your calendar first");
+          return;
+        }
+        const select = $("#class-note-occurrence");
+        select.innerHTML = occurrences.map(({ event, date }) => {
+          const value = classOccurrenceValue(event, date);
+          const label = `${event.title} · ${dateLabel(date, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}${event.start ? ` · ${timeLabel(event)}` : ""}`;
+          return `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`;
+        }).join("");
+        const preferred = eventId && occurrenceDate ? classOccurrenceValue(eventId, occurrenceDate) : "";
+        if (preferred && [...select.options].some((option) => option.value === preferred)) select.value = preferred;
+        updateClassNoteDialogInput();
+        openDialog("class-note-dialog");
+        setTimeout(() => $("#class-note-input").focus(), 40);
+      }
+
+      function selectClass(eventId, occurrenceDate = "") {
+        const item = state.events.find((event) => event.id === eventId);
+        if (!item) return;
+        selectedDate = occurrenceDate || item.date;
+        const date = fromDateKey(selectedDate);
+        calendarCursor = new Date(date.getFullYear(), date.getMonth(), 1, 12);
+        renderCalendar();
+        renderSelectedDay();
+        renderWeek();
+        document.getElementById("calendar").scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+
+      function renderClasses() {
+        const list = $("#classes-list");
+        const lectures = allClassOccurrences().filter(({ event, date }) => classNoteValue(event, date).trim());
+        if (!lectures.length) {
+          list.innerHTML = `<div class="classes-empty">No class notes yet. Choose a lecture with “＋ add notes” and this section will fill up as you write.</div>`;
+          return;
+        }
+        list.innerHTML = lectures.map(({ event, date }) => {
+          const noteKey = classNoteKey(event, date);
+          const recurringLabel = event.repeat ? " · weekly schedule" : "";
+          return `
+          <article class="class-card">
+            <div class="class-card-header">
+              <button class="class-select" type="button" data-class-event="${event.id}" data-class-date="${date}" aria-label="View ${escapeHtml(event.title)} on the calendar">
+                <span class="class-title">${escapeHtml(event.title)}</span>
+                <span class="class-meta">${escapeHtml(dateLabel(date, { weekday: "short", day: "numeric", month: "short", year: "numeric" }))}${event.start ? ` · ${escapeHtml(timeLabel(event))}` : ""}${recurringLabel}</span>
+              </button>
+              <button class="edit-button" type="button" data-edit-event="${event.id}" aria-label="Edit the weekly schedule for ${escapeHtml(event.title)}">✎</button>
+            </div>
+            <textarea class="class-notes" data-class-notes="${noteKey}" data-class-event="${event.id}" data-class-date="${date}" aria-label="Notes for ${escapeHtml(event.title)} on ${escapeHtml(dateLabel(date, { day: "numeric", month: "long", year: "numeric" }))}" placeholder="Add the notes you took in this lecture...">${escapeHtml(classNoteValue(event, date))}</textarea>
+            <div class="class-footer">
+              <span class="class-status" data-class-status="${noteKey}">saved locally</span>
+              <button class="class-calendar-link" type="button" data-class-event="${event.id}" data-class-date="${date}">view on calendar ↗</button>
+            </div>
+          </article>`;
+        }).join("");
+
+        $$(`[data-class-notes]`).forEach((input) => {
+          input.addEventListener("input", (event) => {
+            const noteKey = event.currentTarget.dataset.classNotes;
+            state.classNotes[noteKey] = event.currentTarget.value;
+            const item = state.events.find((calendarEvent) => calendarEvent.id === event.currentTarget.dataset.classEvent);
+            if (item?.repeat && event.currentTarget.dataset.classDate === item.date) delete state.classNotes[item.id];
+            state.classNotesVersion = CLASS_NOTES_VERSION;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            const status = event.currentTarget.closest(".class-card").querySelector("[data-class-status]");
+            status.textContent = "saving…";
+            window.classNoteTimers = window.classNoteTimers || {};
+            clearTimeout(window.classNoteTimers[noteKey]);
+            window.classNoteTimers[noteKey] = setTimeout(() => { status.textContent = "saved locally"; }, 500);
+          });
+          input.addEventListener("blur", (event) => {
+            if (event.currentTarget.value.trim()) return;
+            const noteKey = event.currentTarget.dataset.classNotes;
+            delete state.classNotes[noteKey];
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            renderClasses();
+          });
+        });
+      }
+
       function renderDeadlines() {
         const deadlines = getUpcomingDeadlines().slice(0, 4);
         const list = $("#deadline-list");
@@ -1184,6 +1397,7 @@
         renderCalendar();
         renderSelectedDay();
         renderWeek();
+        renderClasses();
         renderDeadlines();
         renderTasks();
         renderNotes();
@@ -1277,6 +1491,11 @@
       document.addEventListener("click", (event) => {
         const dismissNudge = event.target.closest("[data-dismiss-nudge]");
         if (dismissNudge) { hideEncouragement(); return; }
+        const openClassNoteButton = event.target.closest("[data-open-class-note]");
+        if (openClassNoteButton) {
+          openClassNoteDialog(openClassNoteButton.dataset.classEvent, openClassNoteButton.dataset.classDate);
+          return;
+        }
         const openEventButton = event.target.closest("[data-open-event]");
         if (openEventButton) { openEventDialog(selectedDate, openEventButton.hasAttribute("data-lecture")); return; }
         const openTaskButton = event.target.closest("[data-open-task]");
@@ -1297,6 +1516,8 @@
         if (exportButton) { exportAppleCalendar(); return; }
         const editEventButton = event.target.closest("[data-edit-event]");
         if (editEventButton) { openEditEvent(editEventButton.dataset.editEvent); return; }
+        const classEventButton = event.target.closest("[data-class-event]");
+        if (classEventButton) { selectClass(classEventButton.dataset.classEvent, classEventButton.dataset.classDate); return; }
         const dateButton = event.target.closest("[data-date]");
         if (dateButton) { selectDate(dateButton.dataset.date); return; }
         const filterButton = event.target.closest("[data-filter]");
@@ -1320,7 +1541,9 @@
         }
         const deleteEvent = event.target.closest("[data-delete-event]");
         if (deleteEvent) {
-          state.events = state.events.filter((item) => item.id !== deleteEvent.dataset.deleteEvent);
+          const eventId = deleteEvent.dataset.deleteEvent;
+          state.events = state.events.filter((item) => item.id !== eventId);
+          removeClassNotes(eventId);
           saveState("Calendar event removed"); renderAll(); return;
         }
         const navButton = event.target.closest("[data-scroll-to]");
@@ -1347,9 +1570,13 @@
       $("#event-type").addEventListener("change", updateRepeatVisibility);
       $("#event-repeat").addEventListener("change", updateRepeatVisibility);
       $("#event-date").addEventListener("change", updateRepeatVisibility);
+      $("#class-note-occurrence").addEventListener("change", updateClassNoteDialogInput);
       $("#clear-confirm-checkbox").addEventListener("change", (event) => {
         $("#confirm-clear").disabled = !event.target.checked;
       });
+      $("#nudge-trigger").addEventListener("mouseenter", showEncouragement);
+      $("#nudge-trigger").addEventListener("focus", showEncouragement);
+      $("#nudge-trigger").addEventListener("click", showEncouragement);
 
       $("#calendar-file-input").addEventListener("change", async (event) => {
         const file = event.target.files?.[0];
@@ -1381,6 +1608,21 @@
         calendarCursor = new Date(fromDateKey(item.date).getFullYear(), fromDateKey(item.date).getMonth(), 1, 12);
         saveState(existing ? "Calendar event updated" : "Event added to your calendar");
         closeDialog("event-dialog");
+        renderAll();
+      });
+
+      $("#class-note-form").addEventListener("submit", (event) => {
+        event.preventDefault();
+        const occurrence = findClassOccurrence($("#class-note-occurrence").value);
+        if (!occurrence) return;
+        const noteKey = classNoteKey(occurrence.event, occurrence.date);
+        const value = $("#class-note-input").value.trim();
+        if (occurrence.event.repeat && occurrence.date === occurrence.event.date) delete state.classNotes[occurrence.event.id];
+        if (value) state.classNotes[noteKey] = value;
+        else delete state.classNotes[noteKey];
+        state.classNotesVersion = CLASS_NOTES_VERSION;
+        saveState(value ? "Class notes saved" : "Class notes cleared");
+        closeDialog("class-note-dialog");
         renderAll();
       });
 
