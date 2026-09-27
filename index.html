@@ -59,6 +59,56 @@
       min-height: 100vh;
     }
 
+    .welcome-screen[hidden], .app-shell[hidden] { display: none; }
+    .welcome-screen {
+      position: relative;
+      display: grid;
+      min-height: 100vh;
+      place-items: center;
+      overflow: hidden;
+      padding: 32px 22px;
+    }
+    .welcome-screen::before, .welcome-screen::after {
+      position: absolute;
+      border-radius: 50%;
+      content: "";
+      pointer-events: none;
+    }
+    .welcome-screen::before { top: -18rem; right: -8rem; width: 42rem; height: 42rem; background: rgba(216, 184, 130, 0.16); }
+    .welcome-screen::after { bottom: -22rem; left: -11rem; width: 48rem; height: 48rem; background: rgba(153, 184, 145, 0.12); }
+    .welcome-inner {
+      position: relative;
+      z-index: 1;
+      width: min(920px, 100%);
+      padding: clamp(38px, 7vw, 78px) clamp(24px, 7vw, 88px);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      text-align: center;
+      background: rgba(255, 253, 247, 0.72);
+      box-shadow: 0 24px 90px rgba(76, 64, 46, 0.12);
+      backdrop-filter: blur(12px);
+    }
+    .welcome-mark {
+      display: grid;
+      width: 42px;
+      height: 42px;
+      margin: 0 auto;
+      place-items: center;
+      border: 1px solid rgba(118, 149, 111, 0.35);
+      border-radius: 13px;
+      color: var(--ink);
+      background: var(--mint);
+      font-family: var(--mono);
+      font-size: 20px;
+      font-weight: 800;
+    }
+    .welcome-eyebrow { margin: 19px 0 0; color: var(--faint); font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; }
+    .welcome-title { max-width: 780px; margin: 22px auto 34px; color: var(--ink); font-size: clamp(42px, 7vw, 82px); font-weight: 600; line-height: 0.98; letter-spacing: -0.065em; }
+    .welcome-title span { color: var(--mint-deep); }
+    .welcome-go { display: inline-flex; align-items: center; gap: 15px; min-width: 106px; justify-content: center; padding: 12px 17px 12px 20px; border: 1px solid rgba(118, 149, 111, 0.40); border-radius: 999px; color: var(--ink); background: rgba(169, 197, 161, 0.20); cursor: pointer; font-family: var(--mono); font-size: 13px; transition: 180ms ease; }
+    .welcome-go:hover, .welcome-go:focus-visible { border-color: var(--mint-deep); background: rgba(169, 197, 161, 0.36); outline: 0; transform: translateX(3px); }
+    .welcome-go-arrow { color: var(--mint-deep); font-size: 20px; line-height: 0.8; }
+
     .sidebar {
       display: flex;
       position: sticky;
@@ -527,7 +577,16 @@
   </style>
 </head>
 <body>
-  <div class="app-shell">
+  <section class="welcome-screen" id="welcome-screen" aria-labelledby="welcome-title">
+    <div class="welcome-inner">
+      <div class="welcome-mark" aria-hidden="true">+</div>
+      <p class="welcome-eyebrow">study planner / your little command centre</p>
+      <h1 class="welcome-title" id="welcome-title">Welcome Master Broster,<br><span>shall we get to work</span></h1>
+      <button class="welcome-go" type="button" data-enter-planner><span>go</span><span class="welcome-go-arrow" aria-hidden="true">→</span></button>
+    </div>
+  </section>
+
+  <div class="app-shell" id="planner-app" hidden>
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-mark">+</div>
@@ -810,6 +869,12 @@
       const $$ = (selector) => [...document.querySelectorAll(selector)];
 
       let state = loadState();
+
+      function enterPlanner() {
+        $("#welcome-screen").hidden = true;
+        $("#planner-app").hidden = false;
+        window.scrollTo(0, 0);
+      }
 
       function startOfDay(date) {
         return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
@@ -1489,6 +1554,8 @@
       }
 
       document.addEventListener("click", (event) => {
+        const enterPlannerButton = event.target.closest("[data-enter-planner]");
+        if (enterPlannerButton) { enterPlanner(); return; }
         const dismissNudge = event.target.closest("[data-dismiss-nudge]");
         if (dismissNudge) { hideEncouragement(); return; }
         const openClassNoteButton = event.target.closest("[data-open-class-note]");
