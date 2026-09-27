@@ -432,6 +432,23 @@
     .warning-box strong { color: #a86e3c; font-size: 12px; }
     .clear-confirm { margin-top: 15px; color: var(--ink); }
 
+    .study-nudge { position: fixed; right: 22px; bottom: 74px; z-index: 19; display: grid; grid-template-columns: 42px minmax(0, 1fr) 24px; align-items: center; gap: 10px; width: min(310px, calc(100vw - 32px)); padding: 11px 11px 11px 9px; border: 1px solid rgba(118, 149, 111, 0.34); border-radius: 13px; color: var(--ink); background: rgba(255, 253, 247, 0.97); box-shadow: 0 16px 42px rgba(76, 64, 46, 0.18); opacity: 0; pointer-events: none; transform: translateY(14px) scale(0.97); transition: 220ms ease; }
+    .study-nudge[hidden] { display: none; }
+    .study-nudge.is-visible { opacity: 1; pointer-events: auto; transform: translateY(0) scale(1); }
+    .nudge-icon { position: relative; display: grid; width: 42px; height: 42px; place-items: center; border-radius: 11px; background: rgba(169, 197, 161, 0.18); overflow: hidden; }
+    .nudge-cup { position: relative; z-index: 2; display: block; font-size: 26px; line-height: 1; animation: cup-bob 2.2s ease-in-out infinite; }
+    .nudge-steam { position: absolute; z-index: 1; bottom: 23px; width: 3px; height: 10px; border-radius: 999px; background: rgba(118, 149, 111, 0.52); transform-origin: bottom center; animation: steam-rise 1.8s ease-in-out infinite; }
+    .nudge-steam.steam-one { left: 15px; }
+    .nudge-steam.steam-two { left: 23px; height: 8px; animation-delay: 0.65s; }
+    .nudge-copy { display: grid; gap: 3px; min-width: 0; }
+    .nudge-copy strong { color: var(--mint-deep); font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; }
+    .nudge-copy span { color: var(--muted); font-size: 12px; line-height: 1.35; }
+    .nudge-close { display: grid; width: 24px; height: 24px; place-items: center; align-self: start; border: 0; border-radius: 6px; color: var(--faint); background: transparent; cursor: pointer; font-size: 18px; line-height: 1; }
+    .nudge-close:hover { color: var(--ink); background: rgba(169, 197, 161, 0.15); }
+
+    @keyframes cup-bob { 0%, 100% { transform: translateY(1px) rotate(-3deg); } 50% { transform: translateY(-3px) rotate(3deg); } }
+    @keyframes steam-rise { 0% { opacity: 0; transform: translateY(4px) scaleY(0.65); } 35%, 70% { opacity: 0.75; } 100% { opacity: 0; transform: translateY(-7px) scaleY(1.05); } }
+
     .toast { position: fixed; right: 22px; bottom: 22px; z-index: 20; padding: 10px 13px; border: 1px solid rgba(118, 149, 111, 0.32); border-radius: 9px; color: var(--mint-deep); background: #fffdf7; box-shadow: var(--shadow); font-family: var(--mono); font-size: 11px; opacity: 0; pointer-events: none; transform: translateY(8px); transition: 180ms ease; }
     .toast.show { opacity: 1; transform: translateY(0); }
 
@@ -454,6 +471,7 @@
       .topbar { display: block; margin-bottom: 22px; }
       .top-actions { justify-content: flex-start; margin-top: 18px; }
       .clock-card { text-align: left; }
+      .study-nudge { right: 16px; bottom: 70px; }
       .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .calendar-cell { min-height: 67px; padding: 5px; }
       .calendar-weekdays span { padding: 0 5px; font-size: 9px; }
@@ -633,6 +651,19 @@
     </main>
   </div>
 
+  <aside class="study-nudge" id="study-nudge" role="status" aria-live="polite" hidden>
+    <div class="nudge-icon" aria-hidden="true">
+      <span class="nudge-steam steam-one"></span>
+      <span class="nudge-steam steam-two"></span>
+      <span class="nudge-cup">☕</span>
+    </div>
+    <div class="nudge-copy">
+      <strong>little study pause</strong>
+      <span id="nudge-message">Keep on going — you’re doing great.</span>
+    </div>
+    <button class="nudge-close" type="button" data-dismiss-nudge aria-label="Dismiss encouragement">×</button>
+  </aside>
+
   <dialog id="event-dialog">
     <form method="dialog" id="event-form">
       <div class="dialog-inner">
@@ -700,6 +731,15 @@
       let calendarCursor = new Date(today.getFullYear(), today.getMonth(), 1, 12);
       let activeFilter = "all";
       let toastTimer;
+      const ENCOURAGEMENT_INTERVAL = 5 * 60 * 1000;
+      const encouragementMessages = [
+        "Keep on going — you’re doing great.",
+        "Small steps still move you forward.",
+        "You’re making progress. One thing at a time.",
+        "Take a sip, reset your focus, and carry on."
+      ];
+      let encouragementIndex = 0;
+      let encouragementHideTimer;
 
       const $ = (selector) => document.querySelector(selector);
       const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -956,6 +996,25 @@
         toast.classList.add("show");
         clearTimeout(toastTimer);
         toastTimer = setTimeout(() => toast.classList.remove("show"), 1800);
+      }
+
+      function hideEncouragement() {
+        const nudge = $("#study-nudge");
+        if (nudge.hidden) return;
+        nudge.classList.remove("is-visible");
+        clearTimeout(encouragementHideTimer);
+        encouragementHideTimer = setTimeout(() => { nudge.hidden = true; }, 240);
+      }
+
+      function showEncouragement() {
+        const nudge = $("#study-nudge");
+        $("#nudge-message").textContent = encouragementMessages[encouragementIndex % encouragementMessages.length];
+        encouragementIndex += 1;
+        clearTimeout(encouragementHideTimer);
+        nudge.hidden = false;
+        nudge.classList.remove("is-visible");
+        requestAnimationFrame(() => nudge.classList.add("is-visible"));
+        encouragementHideTimer = setTimeout(hideEncouragement, 12000);
       }
 
       function typeLabel(type) {
@@ -1216,6 +1275,8 @@
       }
 
       document.addEventListener("click", (event) => {
+        const dismissNudge = event.target.closest("[data-dismiss-nudge]");
+        if (dismissNudge) { hideEncouragement(); return; }
         const openEventButton = event.target.closest("[data-open-event]");
         if (openEventButton) { openEventDialog(selectedDate, openEventButton.hasAttribute("data-lecture")); return; }
         const openTaskButton = event.target.closest("[data-open-task]");
@@ -1348,6 +1409,7 @@
 
       renderAll();
       setInterval(renderClock, 1000);
+      setInterval(showEncouragement, ENCOURAGEMENT_INTERVAL);
     })();
   </script>
 </body>
