@@ -381,6 +381,23 @@
 
     .bottom-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 0.9fr); gap: 16px; margin-top: 16px; }
 
+    .classes-panel { margin-top: 16px; }
+    .classes-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(265px, 1fr)); gap: 12px; margin-top: 17px; }
+    .class-card { min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 11px; background: rgba(255, 253, 247, 0.58); }
+    .class-card-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 8px; }
+    .class-select { display: grid; gap: 4px; min-width: 0; padding: 0; border: 0; color: inherit; background: transparent; cursor: pointer; text-align: left; }
+    .class-select:hover .class-title { color: var(--mint-deep); }
+    .class-title { overflow: hidden; color: var(--ink); font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+    .class-meta { overflow: hidden; color: var(--faint); font-family: var(--mono); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .class-card .edit-button { flex: 0 0 auto; }
+    .class-notes { display: block; width: 100%; min-height: 112px; margin-top: 12px; resize: vertical; padding: 10px 11px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: rgba(255, 253, 247, 0.72); font-family: var(--mono); font-size: 11px; line-height: 1.55; }
+    .class-notes:focus { border-color: var(--mint-deep); outline: 0; }
+    .class-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; color: var(--faint); font-size: 10px; }
+    .class-status { font-family: var(--mono); }
+    .class-calendar-link { padding: 0; border: 0; color: var(--mint-deep); background: transparent; cursor: pointer; font-family: var(--mono); font-size: 10px; }
+    .class-calendar-link:hover { text-decoration: underline; }
+    .classes-empty { grid-column: 1 / -1; padding: 17px 5px; color: var(--faint); font-size: 12px; }
+
     .tasks-panel, .notes-panel { min-height: 330px; }
     .task-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
     .filter-list { display: flex; gap: 4px; }
@@ -520,6 +537,7 @@
         <nav class="nav-list" aria-label="Main navigation">
           <button class="nav-button active" type="button" data-scroll-to="dashboard"><span class="nav-icon">⌂</span><span>Dashboard</span></button>
           <button class="nav-button" type="button" data-scroll-to="calendar"><span class="nav-icon">□</span><span>Calendar</span></button>
+          <button class="nav-button" type="button" data-scroll-to="classes"><span class="nav-icon">▤</span><span>Classes</span></button>
           <button class="nav-button" type="button" data-scroll-to="tasks"><span class="nav-icon">☑</span><span>To-do list</span></button>
           <button class="nav-button" type="button" data-scroll-to="notes"><span class="nav-icon">✎</span><span>Notes</span></button>
         </nav>
@@ -623,6 +641,17 @@
             </div>
           </section>
         </div>
+
+        <section class="panel panel-padding classes-panel" id="classes">
+          <div class="panel-heading">
+            <div>
+              <h2>Classes <code>/ lecture notes</code></h2>
+              <p>Keep notes beside the lecture they came from.</p>
+            </div>
+            <button class="button small" type="button" data-open-event data-lecture>＋ lecture</button>
+          </div>
+          <div class="classes-list" id="classes-list"></div>
+        </section>
 
         <div class="bottom-grid">
           <section class="panel panel-padding tasks-panel" id="tasks">
@@ -794,13 +823,18 @@
       }
 
       function emptyState() {
-        return { events: [], tasks: [], notes: "" };
+        return { events: [], tasks: [], notes: "", classNotes: {} };
       }
 
       function loadState() {
         try {
           const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-          if (saved && Array.isArray(saved.events) && Array.isArray(saved.tasks)) return saved;
+          if (saved && Array.isArray(saved.events) && Array.isArray(saved.tasks)) {
+            return {
+              ...saved,
+              classNotes: saved.classNotes && typeof saved.classNotes === "object" && !Array.isArray(saved.classNotes) ? saved.classNotes : {}
+            };
+          }
         } catch (error) {
           console.warn("Could not load planner data", error);
         }
@@ -1153,6 +1187,67 @@
         }).join("");
       }
 
+      function classScheduleLabel(event) {
+        const date = fromDateKey(event.date);
+        const day = date.toLocaleDateString("en-GB", { weekday: "long" });
+        if (event.repeat) {
+          const until = event.repeatUntil ? ` until ${dateLabel(event.repeatUntil, { day: "numeric", month: "short" })}` : "";
+          return `weekly on ${day}${event.start ? ` · ${timeLabel(event)}` : ""}${until}`;
+        }
+        return `${dateLabel(event.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}${event.start ? ` · ${timeLabel(event)}` : ""}`;
+      }
+
+      function selectClass(eventId) {
+        const item = state.events.find((event) => event.id === eventId);
+        if (!item) return;
+        selectedDate = item.date;
+        const date = fromDateKey(item.date);
+        calendarCursor = new Date(date.getFullYear(), date.getMonth(), 1, 12);
+        renderCalendar();
+        renderSelectedDay();
+        renderWeek();
+        document.getElementById("calendar").scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+
+      function renderClasses() {
+        const list = $("#classes-list");
+        const lectures = state.events
+          .filter((event) => event.type === "lecture")
+          .sort((a, b) => `${a.date} ${a.start || ""} ${a.title}`.localeCompare(`${b.date} ${b.start || ""} ${b.title}`));
+        if (!lectures.length) {
+          list.innerHTML = `<div class="classes-empty">No lectures yet. Add a lecture in the calendar to start keeping class notes.</div>`;
+          return;
+        }
+        list.innerHTML = lectures.map((event) => `
+          <article class="class-card">
+            <div class="class-card-header">
+              <button class="class-select" type="button" data-class-event="${event.id}" aria-label="View ${escapeHtml(event.title)} on the calendar">
+                <span class="class-title">${escapeHtml(event.title)}</span>
+                <span class="class-meta">${escapeHtml(classScheduleLabel(event))}</span>
+              </button>
+              <button class="edit-button" type="button" data-edit-event="${event.id}" aria-label="Edit ${escapeHtml(event.title)}">✎</button>
+            </div>
+            <textarea class="class-notes" data-class-notes="${event.id}" aria-label="Notes for ${escapeHtml(event.title)}" placeholder="Add the notes you took in this class...">${escapeHtml(state.classNotes[event.id] || "")}</textarea>
+            <div class="class-footer">
+              <span class="class-status" data-class-status="${event.id}">saved locally</span>
+              <button class="class-calendar-link" type="button" data-class-event="${event.id}">view on calendar ↗</button>
+            </div>
+          </article>`).join("");
+
+        $$(`[data-class-notes]`).forEach((input) => {
+          input.addEventListener("input", (event) => {
+            const classId = event.currentTarget.dataset.classNotes;
+            state.classNotes[classId] = event.currentTarget.value;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            const status = event.currentTarget.closest(".class-card").querySelector("[data-class-status]");
+            status.textContent = "saving…";
+            window.classNoteTimers = window.classNoteTimers || {};
+            clearTimeout(window.classNoteTimers[classId]);
+            window.classNoteTimers[classId] = setTimeout(() => { status.textContent = "saved locally"; }, 500);
+          });
+        });
+      }
+
       function renderDeadlines() {
         const deadlines = getUpcomingDeadlines().slice(0, 4);
         const list = $("#deadline-list");
@@ -1198,6 +1293,7 @@
         renderCalendar();
         renderSelectedDay();
         renderWeek();
+        renderClasses();
         renderDeadlines();
         renderTasks();
         renderNotes();
@@ -1311,6 +1407,8 @@
         if (exportButton) { exportAppleCalendar(); return; }
         const editEventButton = event.target.closest("[data-edit-event]");
         if (editEventButton) { openEditEvent(editEventButton.dataset.editEvent); return; }
+        const classEventButton = event.target.closest("[data-class-event]");
+        if (classEventButton) { selectClass(classEventButton.dataset.classEvent); return; }
         const dateButton = event.target.closest("[data-date]");
         if (dateButton) { selectDate(dateButton.dataset.date); return; }
         const filterButton = event.target.closest("[data-filter]");
@@ -1334,7 +1432,9 @@
         }
         const deleteEvent = event.target.closest("[data-delete-event]");
         if (deleteEvent) {
-          state.events = state.events.filter((item) => item.id !== deleteEvent.dataset.deleteEvent);
+          const eventId = deleteEvent.dataset.deleteEvent;
+          state.events = state.events.filter((item) => item.id !== eventId);
+          delete state.classNotes[eventId];
           saveState("Calendar event removed"); renderAll(); return;
         }
         const navButton = event.target.closest("[data-scroll-to]");
