@@ -453,6 +453,8 @@
     .note-editor:focus { background: #fffdf7; }
     .note-editor:empty::before { color: var(--faint); content: attr(data-placeholder); pointer-events: none; }
     .note-editor mark { padding: 0 2px; border-radius: 2px; background: #f4d98c; }
+    .class-note-composer .note-editor { height: 112px; max-height: 112px; overflow-y: auto; }
+    .class-note-composer:focus-within .note-editor { height: auto; max-height: none; overflow-y: visible; }
     .notes-panel .note-editor { min-height: 229px; padding: 14px; background: rgba(255, 253, 247, 0.64); font-size: 12px; line-height: 1.7; }
     .notes-panel .note-editor:focus { background: #fffdf7; }
     .class-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; color: var(--faint); font-size: 10px; }
@@ -760,6 +762,9 @@
                 <button class="note-tool" type="button" data-note-command="uppercase" title="Make selected text uppercase" aria-label="Make selected text uppercase">CAP</button>
                 <button class="note-tool" type="button" data-note-command="italic" title="Italic" aria-label="Italic"><em>I</em></button>
                 <button class="note-tool highlight" type="button" data-note-command="highlight" title="Highlight" aria-label="Highlight">H</button>
+                <button class="note-tool" type="button" data-note-command="font-small" title="Smaller text" aria-label="Make text smaller">A−</button>
+                <button class="note-tool" type="button" data-note-command="font-normal" title="Normal text size" aria-label="Use normal text size">A</button>
+                <button class="note-tool" type="button" data-note-command="font-large" title="Larger text" aria-label="Make text larger">A+</button>
               </div>
               <div id="notes-input" class="note-editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="General notes" data-note-editor data-placeholder="Start writing here..."></div>
             </div>
@@ -829,6 +834,9 @@
                 <button class="note-tool" type="button" data-note-command="uppercase" title="Make selected text uppercase" aria-label="Make selected text uppercase">CAP</button>
                 <button class="note-tool" type="button" data-note-command="italic" title="Italic" aria-label="Italic"><em>I</em></button>
                 <button class="note-tool highlight" type="button" data-note-command="highlight" title="Highlight" aria-label="Highlight">H</button>
+                <button class="note-tool" type="button" data-note-command="font-small" title="Smaller text" aria-label="Make text smaller">A−</button>
+                <button class="note-tool" type="button" data-note-command="font-normal" title="Normal text size" aria-label="Use normal text size">A</button>
+                <button class="note-tool" type="button" data-note-command="font-large" title="Larger text" aria-label="Make text larger">A+</button>
               </div>
               <div id="class-note-input" class="note-editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Notes from this lecture" data-note-editor data-placeholder="What did you learn? What should you revisit?"></div>
             </div>
@@ -942,7 +950,7 @@
         const template = document.createElement("template");
         template.innerHTML = String(value || "");
         const output = document.createElement("div");
-        const allowed = new Set(["STRONG", "B", "EM", "I", "MARK", "BR", "DIV", "P"]);
+        const allowed = new Set(["STRONG", "B", "EM", "I", "MARK", "SMALL", "BIG", "BR", "DIV", "P"]);
         const copyNode = (node, parent) => {
           if (node.nodeType === 3) {
             parent.appendChild(document.createTextNode(node.nodeValue));
@@ -958,6 +966,23 @@
             const cleanNode = document.createElement("mark");
             [...node.childNodes].forEach((child) => copyNode(child, cleanNode));
             parent.appendChild(cleanNode);
+            return;
+          }
+          if (tag === "FONT" && node.hasAttribute("size")) {
+            const size = node.getAttribute("size");
+            if (["1", "2"].includes(size)) {
+              const cleanNode = document.createElement("small");
+              [...node.childNodes].forEach((child) => copyNode(child, cleanNode));
+              parent.appendChild(cleanNode);
+              return;
+            }
+            if (["4", "5", "6", "7"].includes(size)) {
+              const cleanNode = document.createElement("big");
+              [...node.childNodes].forEach((child) => copyNode(child, cleanNode));
+              parent.appendChild(cleanNode);
+              return;
+            }
+            [...node.childNodes].forEach((child) => copyNode(child, parent));
             return;
           }
           if (!allowed.has(tag)) {
@@ -976,7 +1001,7 @@
       function noteHtml(value = "") {
         const raw = String(value || "");
         if (!raw) return "";
-        if (/<(?:strong|b|em|i|mark|br|div|p)\b/i.test(raw)) return sanitizeNoteHtml(raw);
+        if (/<(?:strong|b|em|i|mark|small|big|br|div|p)\b/i.test(raw)) return sanitizeNoteHtml(raw);
         return escapeHtml(raw).replace(/\r?\n/g, "<br>");
       }
 
@@ -992,6 +1017,9 @@
           <button class="note-tool" type="button" data-note-command="uppercase" title="Make selected text uppercase" aria-label="Make selected text uppercase">CAP</button>
           <button class="note-tool" type="button" data-note-command="italic" title="Italic" aria-label="Italic"><em>I</em></button>
           <button class="note-tool highlight" type="button" data-note-command="highlight" title="Highlight" aria-label="Highlight">H</button>
+          <button class="note-tool" type="button" data-note-command="font-small" title="Smaller text" aria-label="Make text smaller">A−</button>
+          <button class="note-tool" type="button" data-note-command="font-normal" title="Normal text size" aria-label="Use normal text size">A</button>
+          <button class="note-tool" type="button" data-note-command="font-large" title="Larger text" aria-label="Make text larger">A+</button>
         </div>`;
       }
 
@@ -1013,6 +1041,8 @@
           selection.addRange(range);
         } else if (command === "highlight") {
           document.execCommand("hiliteColor", false, "#f4d98c") || document.execCommand("backColor", false, "#f4d98c");
+        } else if (["font-small", "font-normal", "font-large"].includes(command)) {
+          document.execCommand("fontSize", false, ({ "font-small": "2", "font-normal": "3", "font-large": "5" })[command]);
         } else {
           document.execCommand(command, false, null);
         }
@@ -1672,6 +1702,8 @@
       });
 
       document.addEventListener("click", (event) => {
+        const activeClassEditor = document.activeElement;
+        if (activeClassEditor?.matches("[data-class-notes]") && !event.target.closest(".class-note-composer")) activeClassEditor.blur();
         const noteTool = event.target.closest("[data-note-command]");
         if (noteTool) {
           runNoteCommand(noteTool.dataset.noteCommand, noteTool.closest(".note-composer")?.querySelector(".note-editor"));
