@@ -442,8 +442,19 @@
     .class-title { overflow: hidden; color: var(--ink); font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
     .class-meta { overflow: hidden; color: var(--faint); font-family: var(--mono); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
     .class-card .edit-button { flex: 0 0 auto; }
-    .class-notes { display: block; width: 100%; min-height: 112px; margin-top: 12px; resize: vertical; padding: 10px 11px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: rgba(255, 253, 247, 0.72); font-family: var(--mono); font-size: 11px; line-height: 1.55; }
-    .class-notes:focus { border-color: var(--mint-deep); outline: 0; }
+    .note-composer { overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: rgba(255, 253, 247, 0.64); }
+    .class-note-composer { margin-top: 12px; }
+    .note-toolbar { display: flex; align-items: center; gap: 4px; padding: 6px; border-bottom: 1px solid var(--line); background: rgba(238, 231, 218, 0.46); }
+    .note-tool { display: inline-grid; min-width: 25px; height: 24px; place-items: center; padding: 0 6px; border: 1px solid transparent; border-radius: 5px; color: var(--muted); background: transparent; cursor: pointer; font-family: var(--mono); font-size: 10px; line-height: 1; }
+    .note-tool:hover, .note-tool:focus-visible { border-color: var(--line-strong); color: var(--ink); background: rgba(255, 253, 247, 0.72); outline: 0; }
+    .note-tool.highlight { color: #765d2b; background: #f4d98c; }
+    .note-tool.highlight:hover, .note-tool.highlight:focus-visible { background: #efd078; }
+    .note-editor { display: block; min-height: 112px; padding: 10px 11px; color: var(--ink); background: rgba(255, 253, 247, 0.72); font-family: var(--mono); font-size: 11px; line-height: 1.55; outline: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .note-editor:focus { background: #fffdf7; }
+    .note-editor:empty::before { color: var(--faint); content: attr(data-placeholder); pointer-events: none; }
+    .note-editor mark { padding: 0 2px; border-radius: 2px; background: #f4d98c; }
+    .notes-panel .note-editor { min-height: 229px; padding: 14px; background: rgba(255, 253, 247, 0.64); font-size: 12px; line-height: 1.7; }
+    .notes-panel .note-editor:focus { background: #fffdf7; }
     .class-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; color: var(--faint); font-size: 10px; }
     .class-status { font-family: var(--mono); }
     .class-calendar-link { padding: 0; border: 0; color: var(--mint-deep); background: transparent; cursor: pointer; font-family: var(--mono); font-size: 10px; }
@@ -471,7 +482,6 @@
     .task-row:hover .delete-button, .delete-button:focus-visible { opacity: 1; }
     .delete-button:hover { color: var(--pink); }
 
-    .notes-panel textarea { display: block; width: 100%; min-height: 229px; resize: vertical; padding: 14px; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); background: rgba(255, 253, 247, 0.64); font-family: var(--mono); font-size: 12px; line-height: 1.7; }
     .notes-footer { display: flex; justify-content: space-between; gap: 10px; margin-top: 9px; color: var(--faint); font-size: 10px; }
 
     dialog { width: min(540px, calc(100% - 30px)); padding: 0; border: 1px solid var(--line-strong); border-radius: 16px; color: var(--ink); background: var(--surface-2); box-shadow: 0 30px 120px rgba(76, 64, 46, 0.24); }
@@ -744,7 +754,15 @@
                 <p>A quiet place for reminders, ideas and things to revisit.</p>
               </div>
             </div>
-            <textarea id="notes-input" aria-label="General notes" placeholder="Start writing here..."></textarea>
+            <div class="note-composer">
+              <div class="note-toolbar" role="toolbar" aria-label="General note formatting">
+                <button class="note-tool" type="button" data-note-command="bold" title="Bold" aria-label="Bold"><strong>B</strong></button>
+                <button class="note-tool" type="button" data-note-command="uppercase" title="Make selected text uppercase" aria-label="Make selected text uppercase">CAP</button>
+                <button class="note-tool" type="button" data-note-command="italic" title="Italic" aria-label="Italic"><em>I</em></button>
+                <button class="note-tool highlight" type="button" data-note-command="highlight" title="Highlight" aria-label="Highlight">H</button>
+              </div>
+              <div id="notes-input" class="note-editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="General notes" data-note-editor data-placeholder="Start writing here..."></div>
+            </div>
             <div class="notes-footer"><span id="notes-status">saved locally</span><span>autosaves as you type</span></div>
           </section>
         </div>
@@ -803,7 +821,18 @@
         </div>
         <div class="form-grid">
           <div class="form-field full"><label for="class-note-occurrence">Lecture</label><select id="class-note-occurrence" name="occurrence" required></select></div>
-          <div class="form-field full"><label for="class-note-input">Notes from this lecture</label><textarea id="class-note-input" name="notes" placeholder="What did you learn? What should you revisit?"></textarea></div>
+          <div class="form-field full">
+            <label for="class-note-input">Notes from this lecture</label>
+            <div class="note-composer">
+              <div class="note-toolbar" role="toolbar" aria-label="Class note formatting">
+                <button class="note-tool" type="button" data-note-command="bold" title="Bold" aria-label="Bold"><strong>B</strong></button>
+                <button class="note-tool" type="button" data-note-command="uppercase" title="Make selected text uppercase" aria-label="Make selected text uppercase">CAP</button>
+                <button class="note-tool" type="button" data-note-command="italic" title="Italic" aria-label="Italic"><em>I</em></button>
+                <button class="note-tool highlight" type="button" data-note-command="highlight" title="Highlight" aria-label="Highlight">H</button>
+              </div>
+              <div id="class-note-input" class="note-editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Notes from this lecture" data-note-editor data-placeholder="What did you learn? What should you revisit?"></div>
+            </div>
+          </div>
         </div>
         <div class="dialog-actions"><button class="button" type="button" data-close-dialog="class-note-dialog">cancel</button><button class="button primary" type="submit">save notes</button></div>
       </div>
@@ -907,6 +936,87 @@
 
       function escapeHtml(value = "") {
         return String(value).replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#039;", '"': "&quot;" }[character]));
+      }
+
+      function sanitizeNoteHtml(value = "") {
+        const template = document.createElement("template");
+        template.innerHTML = String(value || "");
+        const output = document.createElement("div");
+        const allowed = new Set(["STRONG", "B", "EM", "I", "MARK", "BR", "DIV", "P"]);
+        const copyNode = (node, parent) => {
+          if (node.nodeType === 3) {
+            parent.appendChild(document.createTextNode(node.nodeValue));
+            return;
+          }
+          if (node.nodeType !== 1) {
+            [...node.childNodes].forEach((child) => copyNode(child, parent));
+            return;
+          }
+          const tag = node.tagName.toUpperCase();
+          const style = node.getAttribute("style") || "";
+          if ((tag === "SPAN" || tag === "FONT") && /background-color\s*:/i.test(style)) {
+            const cleanNode = document.createElement("mark");
+            [...node.childNodes].forEach((child) => copyNode(child, cleanNode));
+            parent.appendChild(cleanNode);
+            return;
+          }
+          if (!allowed.has(tag)) {
+            [...node.childNodes].forEach((child) => copyNode(child, parent));
+            return;
+          }
+          const cleanTag = tag === "B" ? "strong" : tag === "I" ? "em" : tag.toLowerCase();
+          const cleanNode = document.createElement(cleanTag);
+          [...node.childNodes].forEach((child) => copyNode(child, cleanNode));
+          parent.appendChild(cleanNode);
+        };
+        [...template.content.childNodes].forEach((node) => copyNode(node, output));
+        return output.innerHTML;
+      }
+
+      function noteHtml(value = "") {
+        const raw = String(value || "");
+        if (!raw) return "";
+        if (/<(?:strong|b|em|i|mark|br|div|p)\b/i.test(raw)) return sanitizeNoteHtml(raw);
+        return escapeHtml(raw).replace(/\r?\n/g, "<br>");
+      }
+
+      function noteText(value = "") {
+        const template = document.createElement("template");
+        template.innerHTML = noteHtml(value);
+        return template.content.textContent || "";
+      }
+
+      function noteToolbarHtml() {
+        return `<div class="note-toolbar" role="toolbar" aria-label="Class note formatting">
+          <button class="note-tool" type="button" data-note-command="bold" title="Bold" aria-label="Bold"><strong>B</strong></button>
+          <button class="note-tool" type="button" data-note-command="uppercase" title="Make selected text uppercase" aria-label="Make selected text uppercase">CAP</button>
+          <button class="note-tool" type="button" data-note-command="italic" title="Italic" aria-label="Italic"><em>I</em></button>
+          <button class="note-tool highlight" type="button" data-note-command="highlight" title="Highlight" aria-label="Highlight">H</button>
+        </div>`;
+      }
+
+      function runNoteCommand(command, editor) {
+        if (!editor) return;
+        editor.focus();
+        if (command === "uppercase") {
+          const selection = window.getSelection();
+          if (!selection || !selection.rangeCount || !editor.contains(selection.anchorNode)) return;
+          const range = selection.getRangeAt(0);
+          const selectedText = range.toString();
+          if (!selectedText) return;
+          range.deleteContents();
+          const replacement = document.createTextNode(selectedText.toUpperCase());
+          range.insertNode(replacement);
+          range.setStartAfter(replacement);
+          range.collapse(true);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        } else if (command === "highlight") {
+          document.execCommand("hiliteColor", false, "#f4d98c") || document.execCommand("backColor", false, "#f4d98c");
+        } else {
+          document.execCommand(command, false, null);
+        }
+        editor.dispatchEvent(new Event("input", { bubbles: true }));
       }
 
       function emptyState() {
@@ -1332,7 +1442,7 @@
 
       function updateClassNoteDialogInput() {
         const occurrence = findClassOccurrence($("#class-note-occurrence").value);
-        $("#class-note-input").value = occurrence ? classNoteValue(occurrence.event, occurrence.date) : "";
+        $("#class-note-input").innerHTML = occurrence ? noteHtml(classNoteValue(occurrence.event, occurrence.date)) : "";
       }
 
       function openClassNoteDialog(eventId = "", occurrenceDate = "") {
@@ -1368,7 +1478,7 @@
 
       function renderClasses() {
         const list = $("#classes-list");
-        const lectures = allClassOccurrences().filter(({ event, date }) => classNoteValue(event, date).trim());
+        const lectures = allClassOccurrences().filter(({ event, date }) => noteText(classNoteValue(event, date)).trim());
         if (!lectures.length) {
           list.innerHTML = `<div class="classes-empty">No class notes yet. Choose a lecture with “＋ add notes” and this section will fill up as you write.</div>`;
           return;
@@ -1385,7 +1495,10 @@
               </button>
               <button class="edit-button" type="button" data-edit-event="${event.id}" aria-label="Edit the weekly schedule for ${escapeHtml(event.title)}">✎</button>
             </div>
-            <textarea class="class-notes" data-class-notes="${noteKey}" data-class-event="${event.id}" data-class-date="${date}" aria-label="Notes for ${escapeHtml(event.title)} on ${escapeHtml(dateLabel(date, { day: "numeric", month: "long", year: "numeric" }))}" placeholder="Add the notes you took in this lecture...">${escapeHtml(classNoteValue(event, date))}</textarea>
+            <div class="note-composer class-note-composer">
+              ${noteToolbarHtml()}
+              <div class="class-notes note-editor" contenteditable="true" data-note-editor data-class-notes="${noteKey}" data-class-owner="${event.id}" data-class-date="${date}" aria-label="Notes for ${escapeHtml(event.title)} on ${escapeHtml(dateLabel(date, { day: "numeric", month: "long", year: "numeric" }))}" data-placeholder="Add the notes you took in this lecture...">${noteHtml(classNoteValue(event, date))}</div>
+            </div>
             <div class="class-footer">
               <span class="class-status" data-class-status="${noteKey}">saved locally</span>
               <button class="class-calendar-link" type="button" data-class-event="${event.id}" data-class-date="${date}">view on calendar ↗</button>
@@ -1396,8 +1509,9 @@
         $$(`[data-class-notes]`).forEach((input) => {
           input.addEventListener("input", (event) => {
             const noteKey = event.currentTarget.dataset.classNotes;
-            state.classNotes[noteKey] = event.currentTarget.value;
-            const item = state.events.find((calendarEvent) => calendarEvent.id === event.currentTarget.dataset.classEvent);
+            const value = sanitizeNoteHtml(event.currentTarget.innerHTML);
+            state.classNotes[noteKey] = value;
+            const item = state.events.find((calendarEvent) => calendarEvent.id === event.currentTarget.dataset.classOwner);
             if (item?.repeat && event.currentTarget.dataset.classDate === item.date) delete state.classNotes[item.id];
             state.classNotesVersion = CLASS_NOTES_VERSION;
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -1408,7 +1522,7 @@
             window.classNoteTimers[noteKey] = setTimeout(() => { status.textContent = "saved locally"; }, 500);
           });
           input.addEventListener("blur", (event) => {
-            if (event.currentTarget.value.trim()) return;
+            if (noteText(event.currentTarget.innerHTML).trim()) return;
             const noteKey = event.currentTarget.dataset.classNotes;
             delete state.classNotes[noteKey];
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -1453,7 +1567,7 @@
 
       function renderNotes() {
         const input = $("#notes-input");
-        if (document.activeElement !== input) input.value = state.notes || "";
+        if (document.activeElement !== input) input.innerHTML = noteHtml(state.notes || "");
       }
 
       function renderAll() {
@@ -1553,7 +1667,16 @@
         renderAll();
       }
 
+      document.addEventListener("mousedown", (event) => {
+        if (event.target.closest("[data-note-command]")) event.preventDefault();
+      });
+
       document.addEventListener("click", (event) => {
+        const noteTool = event.target.closest("[data-note-command]");
+        if (noteTool) {
+          runNoteCommand(noteTool.dataset.noteCommand, noteTool.closest(".note-composer")?.querySelector(".note-editor"));
+          return;
+        }
         const enterPlannerButton = event.target.closest("[data-enter-planner]");
         if (enterPlannerButton) { enterPlanner(); return; }
         const dismissNudge = event.target.closest("[data-dismiss-nudge]");
@@ -1583,7 +1706,7 @@
         if (exportButton) { exportAppleCalendar(); return; }
         const editEventButton = event.target.closest("[data-edit-event]");
         if (editEventButton) { openEditEvent(editEventButton.dataset.editEvent); return; }
-        const classEventButton = event.target.closest("[data-class-event]");
+        const classEventButton = event.target.closest(".class-select, .class-calendar-link");
         if (classEventButton) { selectClass(classEventButton.dataset.classEvent, classEventButton.dataset.classDate); return; }
         const dateButton = event.target.closest("[data-date]");
         if (dateButton) { selectDate(dateButton.dataset.date); return; }
@@ -1683,12 +1806,13 @@
         const occurrence = findClassOccurrence($("#class-note-occurrence").value);
         if (!occurrence) return;
         const noteKey = classNoteKey(occurrence.event, occurrence.date);
-        const value = $("#class-note-input").value.trim();
+        const value = sanitizeNoteHtml($("#class-note-input").innerHTML);
+        const hasNotes = noteText(value).trim();
         if (occurrence.event.repeat && occurrence.date === occurrence.event.date) delete state.classNotes[occurrence.event.id];
-        if (value) state.classNotes[noteKey] = value;
+        if (hasNotes) state.classNotes[noteKey] = value;
         else delete state.classNotes[noteKey];
         state.classNotesVersion = CLASS_NOTES_VERSION;
-        saveState(value ? "Class notes saved" : "Class notes cleared");
+        saveState(hasNotes ? "Class notes saved" : "Class notes cleared");
         closeDialog("class-note-dialog");
         renderAll();
       });
@@ -1705,7 +1829,7 @@
       });
 
       $("#notes-input").addEventListener("input", (event) => {
-        state.notes = event.target.value;
+        state.notes = sanitizeNoteHtml(event.currentTarget.innerHTML);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
         $("#notes-status").textContent = "saving…";
         clearTimeout(window.notesSaveTimer);
