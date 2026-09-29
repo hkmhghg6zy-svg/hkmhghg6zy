@@ -703,7 +703,7 @@
         <nav class="nav-list" aria-label="Main navigation">
           <button class="nav-button active" type="button" data-scroll-to="dashboard"><span class="nav-icon">⌂</span><span>Dashboard</span></button>
           <button class="nav-button" type="button" data-scroll-to="calendar"><span class="nav-icon">□</span><span>Calendar</span></button>
-          <button class="nav-button" type="button" data-scroll-to="classes"><span class="nav-icon">▤</span><span>Event notes</span></button>
+          <button class="nav-button" type="button" data-scroll-to="classes"><span class="nav-icon">▤</span><span>Classes</span></button>
           <button class="nav-button" type="button" data-scroll-to="tasks"><span class="nav-icon">☑</span><span>To-do list</span></button>
           <button class="nav-button" type="button" data-scroll-to="notes"><span class="nav-icon">✎</span><span>Notes</span></button>
         </nav>
@@ -812,11 +812,11 @@
         <section class="panel panel-padding classes-panel" id="classes">
           <div class="panel-heading">
             <div>
-              <h2>Event notes <code>/ calendar notes</code></h2>
-              <p>Calendar events with saved notes appear here — repeating events stay separate week by week.</p>
+              <h2>Classes <code>/ lecture notes</code></h2>
+              <p>Only lectures with saved notes appear here — repeating classes stay separate week by week.</p>
             </div>
             <div class="classes-panel-actions">
-              <button class="button small ghost" type="button" data-open-class-note>＋ add event notes</button>
+              <button class="button small ghost" type="button" data-open-class-note>＋ add notes</button>
               <button class="button small" type="button" data-open-event data-lecture>＋ lecture</button>
             </div>
           </div>
@@ -915,15 +915,15 @@
     <form method="dialog" id="class-note-form">
       <div class="dialog-inner">
         <div class="dialog-heading">
-          <div><h2>Add event notes</h2><p>Choose the calendar event occurrence you want to write about.</p></div>
+          <div><h2>Add class notes</h2><p>Choose the exact lecture occurrence you want to write about.</p></div>
           <button class="close-dialog" type="button" data-close-dialog="class-note-dialog" aria-label="Close">×</button>
         </div>
         <div class="form-grid">
-          <div class="form-field full"><label for="class-note-occurrence">Event</label><select id="class-note-occurrence" name="occurrence" required></select></div>
+          <div class="form-field full"><label for="class-note-occurrence">Lecture</label><select id="class-note-occurrence" name="occurrence" required></select></div>
           <div class="form-field full">
-            <label for="class-note-input">Notes for this event</label>
+            <label for="class-note-input">Notes from this lecture</label>
             <div class="note-composer">
-              <div class="note-toolbar" role="toolbar" aria-label="Event note formatting">
+              <div class="note-toolbar" role="toolbar" aria-label="Class note formatting">
                 <button class="note-tool" type="button" data-note-command="bold" title="Bold" aria-label="Bold"><strong>B</strong></button>
                 <button class="note-tool" type="button" data-note-command="uppercase" title="Make selected text uppercase" aria-label="Make selected text uppercase">CAP</button>
                 <button class="note-tool" type="button" data-note-command="italic" title="Italic" aria-label="Italic"><em>I</em></button>
@@ -1367,7 +1367,7 @@
       }
 
       function noteToolbarHtml() {
-        return `<div class="note-toolbar" role="toolbar" aria-label="Event note formatting">
+        return `<div class="note-toolbar" role="toolbar" aria-label="Class note formatting">
           <button class="note-tool" type="button" data-note-command="bold" title="Bold" aria-label="Bold"><strong>B</strong></button>
           <button class="note-tool" type="button" data-note-command="uppercase" title="Make selected text uppercase" aria-label="Make selected text uppercase">CAP</button>
           <button class="note-tool" type="button" data-note-command="italic" title="Italic" aria-label="Italic"><em>I</em></button>
@@ -1876,7 +1876,7 @@
         const list = $("#classes-list");
         const eventsWithNotes = allClassOccurrences().filter(({ event, date }) => noteText(classNoteValue(event, date)).trim());
         if (!eventsWithNotes.length) {
-          list.innerHTML = `<div class="classes-empty">No event notes yet. Choose a calendar event with “＋ add event notes” and your notes will appear here.</div>`;
+          list.innerHTML = `<div class="classes-empty">No class notes yet. Choose a lecture with “＋ add notes” and this section will fill up as you write.</div>`;
           return;
         }
         list.innerHTML = eventsWithNotes.map(({ event, date }) => {
@@ -1893,7 +1893,7 @@
             </div>
             <div class="note-composer class-note-composer">
               ${noteToolbarHtml()}
-              <div class="class-notes note-editor" contenteditable="true" data-note-editor data-class-notes="${noteKey}" data-class-owner="${event.id}" data-class-date="${date}" aria-label="Notes for ${escapeHtml(event.title)} on ${escapeHtml(dateLabel(date, { day: "numeric", month: "long", year: "numeric" }))}" data-placeholder="Add notes for this event...">${noteHtml(classNoteValue(event, date))}</div>
+              <div class="class-notes note-editor" contenteditable="true" data-note-editor data-class-notes="${noteKey}" data-class-owner="${event.id}" data-class-date="${date}" aria-label="Notes for ${escapeHtml(event.title)} on ${escapeHtml(dateLabel(date, { day: "numeric", month: "long", year: "numeric" }))}" data-placeholder="Add the notes you took in this lecture...">${noteHtml(classNoteValue(event, date))}</div>
             </div>
             <div class="class-footer">
               <span class="class-status" data-class-status="${noteKey}">${escapeHtml(editorSaveStatus)}</span>
@@ -2313,7 +2313,7 @@
         if (hasNotes) state.classNotes[noteKey] = value;
         else delete state.classNotes[noteKey];
         state.classNotesVersion = CLASS_NOTES_VERSION;
-        saveState(hasNotes ? "Event notes saved" : "Event notes cleared");
+        saveState(hasNotes ? "Class notes saved" : "Class notes cleared");
         closeDialog("class-note-dialog");
         renderAll();
       });
