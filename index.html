@@ -1056,7 +1056,7 @@
       function setEditorSaveStatus(message) {
         const generalStatus = $("#notes-status");
         if (generalStatus) generalStatus.textContent = message;
-        $("[data-class-status]").forEach((status) => { status.textContent = message; });
+        $$("[data-class-status]").forEach((status) => { status.textContent = message; });
       }
 
       function showAuthScreen(message = "Sign in to sync your planner.") {
