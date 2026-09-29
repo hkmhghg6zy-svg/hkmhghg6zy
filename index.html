@@ -1198,7 +1198,7 @@
         }
         const activeElement = document.activeElement;
         const userIsEditing = activeElement?.matches('input:not([type="button"]):not([type="submit"]):not([type="reset"]), textarea, select, [contenteditable="true"]');
-        const dialogIsOpen = $("dialog[open]").length > 0;
+        const dialogIsOpen = document.querySelector("dialog[open]") !== null;
         if (document.visibilityState !== "visible" || userIsEditing || dialogIsOpen || passwordRecoveryMode || cloudLoadPromise || cloudSaveTimer || cloudSyncInFlight || cloudSaveQueued) {
           scheduleAutoReload(APP_AUTO_RELOAD_RETRY);
           return;
