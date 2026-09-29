@@ -1005,6 +1005,7 @@
       let retainedLegacyClassNotes = false;
       let cloudUser = null;
       let cloudReady = false;
+      let editorSaveStatus = "saved locally";
       let cloudSaveTimer;
       let cloudSyncInFlight = false;
       let cloudSaveQueued = false;
@@ -1055,6 +1056,7 @@
 
       function setEditorSaveStatus(message) {
         const generalStatus = $("#notes-status");
+        editorSaveStatus = message;
         if (generalStatus) generalStatus.textContent = message;
         $$("[data-class-status]").forEach((status) => { status.textContent = message; });
       }
@@ -1893,7 +1895,7 @@
               <div class="class-notes note-editor" contenteditable="true" data-note-editor data-class-notes="${noteKey}" data-class-owner="${event.id}" data-class-date="${date}" aria-label="Notes for ${escapeHtml(event.title)} on ${escapeHtml(dateLabel(date, { day: "numeric", month: "long", year: "numeric" }))}" data-placeholder="Add the notes you took in this lecture...">${noteHtml(classNoteValue(event, date))}</div>
             </div>
             <div class="class-footer">
-              <span class="class-status" data-class-status="${noteKey}">saved locally</span>
+              <span class="class-status" data-class-status="${noteKey}">${escapeHtml(editorSaveStatus)}</span>
               <button class="class-calendar-link" type="button" data-class-event="${event.id}" data-class-date="${date}">view on calendar ↗</button>
             </div>
           </article>`;
