@@ -1579,9 +1579,11 @@
           if (upper === "END:VEVENT") {
             if (current?.title && current.start) {
               const searchableText = `${current.title} ${current.description || ""}`.toLowerCase();
+              // Calendar imports are usually a class timetable; keep clear deadlines distinct
+              // and make other imported events available for class notes by default.
               const importedType = /deadline|due|submit|submission|hand[- ]?in/.test(searchableText)
                 ? "deadline"
-                : current.rrule && /FREQ=WEEKLY/i.test(current.rrule) ? "lecture" : "other";
+                : "lecture";
               const allDay = current.start.time === "";
               imported.push({
                 id: uid("event"),
