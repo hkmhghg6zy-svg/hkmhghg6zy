@@ -1053,6 +1053,12 @@
         status.classList.toggle("offline", mode === "offline");
       }
 
+      function setEditorSaveStatus(message) {
+        const generalStatus = $("#notes-status");
+        if (generalStatus) generalStatus.textContent = message;
+        $("[data-class-status]").forEach((status) => { status.textContent = message; });
+      }
+
       function showAuthScreen(message = "Sign in to sync your planner.") {
         $("#auth-screen").hidden = false;
         $("#welcome-screen").hidden = true;
@@ -1140,8 +1146,10 @@
         if (error) {
           console.warn("Cloud save failed", error);
           setStorageStatus("cloud save failed · local copy kept", "offline");
+          setEditorSaveStatus("cloud save failed");
         } else {
           setStorageStatus("saved to cloud", "cloud");
+          setEditorSaveStatus("saved to cloud");
         }
         if (cloudSaveQueued) {
           cloudSaveQueued = false;
@@ -1151,7 +1159,11 @@
       }
 
       function queueCloudSave() {
-        if (!cloudReady || !cloudUser || offlineMode) return;
+        if (!cloudReady || !cloudUser || offlineMode) {
+          setEditorSaveStatus("saved locally");
+          return;
+        }
+        setEditorSaveStatus("syncing…");
         clearTimeout(cloudSaveTimer);
         cloudSaveTimer = setTimeout(() => { syncCloudNow(); }, 700);
       }
@@ -1192,6 +1204,7 @@
           }
           cloudReady = true;
           setStorageStatus("saved to cloud", "cloud");
+          setEditorSaveStatus("saved to cloud");
           renderAll();
           showWelcomeScreen();
           return true;
@@ -1886,11 +1899,6 @@
             state.classNotesVersion = CLASS_NOTES_VERSION;
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
             queueCloudSave();
-            const status = event.currentTarget.closest(".class-card").querySelector("[data-class-status]");
-            status.textContent = "saving…";
-            window.classNoteTimers = window.classNoteTimers || {};
-            clearTimeout(window.classNoteTimers[noteKey]);
-            window.classNoteTimers[noteKey] = setTimeout(() => { status.textContent = "saved locally"; }, 500);
           });
           input.addEventListener("blur", (event) => {
             if (noteText(event.currentTarget.innerHTML).trim()) return;
@@ -2057,6 +2065,7 @@
           cloudReady = false;
           cloudUser = null;
           setStorageStatus("local-only mode", "offline");
+          setEditorSaveStatus("saved locally");
           renderAll();
           showWelcomeScreen();
           return;
@@ -2303,9 +2312,6 @@
         state.notes = sanitizeNoteHtml(event.currentTarget.innerHTML);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
         queueCloudSave();
-        $("#notes-status").textContent = "saving…";
-        clearTimeout(window.notesSaveTimer);
-        window.notesSaveTimer = setTimeout(() => { $("#notes-status").textContent = "saved locally"; }, 500);
       });
 
       $$('dialog').forEach((dialog) => dialog.addEventListener("click", (event) => {
