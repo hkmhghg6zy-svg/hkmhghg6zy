@@ -59,6 +59,46 @@
       min-height: 100vh;
     }
 
+    .auth-screen[hidden] { display: none; }
+    .auth-screen {
+      display: grid;
+      min-height: 100vh;
+      place-items: center;
+      overflow: hidden;
+      padding: 32px 22px;
+    }
+    .auth-screen::before, .auth-screen::after {
+      position: fixed;
+      border-radius: 50%;
+      content: "";
+      pointer-events: none;
+    }
+    .auth-screen::before { top: -18rem; right: -9rem; width: 42rem; height: 42rem; background: rgba(216, 184, 130, 0.16); }
+    .auth-screen::after { bottom: -22rem; left: -11rem; width: 48rem; height: 48rem; background: rgba(153, 184, 145, 0.12); }
+    .auth-card {
+      position: relative;
+      z-index: 1;
+      width: min(470px, 100%);
+      padding: clamp(30px, 6vw, 56px);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: rgba(255, 253, 247, 0.78);
+      box-shadow: 0 24px 90px rgba(76, 64, 46, 0.12);
+      backdrop-filter: blur(12px);
+    }
+    .auth-card .welcome-mark { margin: 0; }
+    .auth-title { margin: 18px 0 8px; color: var(--ink); font-size: clamp(31px, 5vw, 48px); font-weight: 600; line-height: 1; letter-spacing: -0.055em; }
+    .auth-copy { margin: 0 0 25px; color: var(--muted); font-size: 13px; }
+    .auth-form { display: grid; gap: 13px; }
+    .auth-field { display: grid; gap: 6px; }
+    .auth-field label { color: var(--muted); font-family: var(--mono); font-size: 10px; text-transform: uppercase; }
+    .auth-field input { width: 100%; padding: 11px 12px; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--ink); background: rgba(255, 253, 247, 0.82); outline: 0; }
+    .auth-field input:focus { border-color: var(--mint-deep); box-shadow: 0 0 0 3px rgba(169, 197, 161, 0.18); }
+    .auth-submit { width: 100%; margin-top: 6px; }
+    .auth-status { min-height: 18px; margin: 13px 0 0; color: var(--muted); font-family: var(--mono); font-size: 10px; }
+    .auth-status.error { color: #a35f55; }
+    .auth-offline { width: 100%; margin-top: 8px; }
+
     .welcome-screen[hidden], .app-shell[hidden] { display: none; }
     .welcome-screen {
       position: relative;
@@ -220,6 +260,10 @@
 
     .storage-note { padding: 0 10px; color: var(--faint); font-family: var(--mono); font-size: 10px; }
     .storage-note span { color: var(--mint-deep); font-size: 9px; }
+    .storage-note.cloud { color: var(--mint-deep); }
+    .storage-note.offline { color: var(--amber); }
+    .signout-button { width: 100%; margin-top: 8px; padding: 7px 10px; border: 0; color: var(--faint); background: transparent; cursor: pointer; font-family: var(--mono); font-size: 10px; text-align: left; }
+    .signout-button:hover { color: var(--ink); }
 
     .reset-button {
       padding: 5px 10px;
@@ -589,7 +633,29 @@
   </style>
 </head>
 <body>
-  <section class="welcome-screen" id="welcome-screen" aria-labelledby="welcome-title">
+  <section class="auth-screen" id="auth-screen" aria-labelledby="auth-title">
+    <div class="auth-card">
+      <div class="welcome-mark" aria-hidden="true">+</div>
+      <p class="welcome-eyebrow">study planner / cloud sign-in</p>
+      <h1 class="auth-title" id="auth-title">Your planner, wherever you work.</h1>
+      <p class="auth-copy">Sign in to keep your calendar, tasks and notes safely synced with the cloud.</p>
+      <form class="auth-form" id="auth-form">
+        <div class="auth-field">
+          <label for="auth-email">Email</label>
+          <input id="auth-email" type="email" autocomplete="email" required placeholder="you@example.com" />
+        </div>
+        <div class="auth-field">
+          <label for="auth-password">Password</label>
+          <input id="auth-password" type="password" autocomplete="current-password" required placeholder="Your Supabase password" />
+        </div>
+        <button class="button primary auth-submit" type="submit" id="auth-submit">sign in and sync</button>
+      </form>
+      <p class="auth-status" id="auth-status" role="status" aria-live="polite">Your data will remain available locally as a fallback.</p>
+      <button class="button ghost auth-offline" type="button" data-continue-offline>continue offline for now</button>
+    </div>
+  </section>
+
+  <section class="welcome-screen" id="welcome-screen" aria-labelledby="welcome-title" hidden>
     <div class="welcome-inner">
       <div class="welcome-mark" aria-hidden="true">+</div>
       <p class="welcome-eyebrow">study planner / your little command centre</p>
@@ -622,7 +688,8 @@
           <strong id="focus-copy">A little progress counts.</strong>
           <div class="focus-progress"><span id="focus-progress"></span></div>
         </div>
-        <div class="storage-note" title="Your planner saves automatically in this browser on this device."><span>●</span> saves in this browser</div>
+        <div class="storage-note" id="storage-note" title="Your planner saves locally and to your private cloud account."><span>●</span> cloud sync starting…</div>
+        <button class="signout-button" type="button" data-sign-out>↪ sign out</button>
         <button class="reset-button" type="button" data-reset>↻ clear planner</button>
       </div>
     </aside>
@@ -883,10 +950,15 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     (() => {
+      const SUPABASE_URL = "https://ntcyoqkgelmnjzyzwarb.supabase.co";
+      const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_iviDLRsCvJEU1pyQezYdLA_oVFw65ho";
+      const cloudClient = window.supabase?.createClient ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY) : null;
       const STORAGE_KEY = "study-planner-v2:hkmhghg6zy";
       const LEGACY_STORAGE_KEY = "study-planner-v2";
+      const CLOUD_OWNER_KEY = `${STORAGE_KEY}:cloud-owner`;
       const CLASS_NOTES_VERSION = 3;
       const today = startOfDay(new Date());
       let selectedDate = toDateKey(today);
@@ -904,9 +976,177 @@
       let encouragementHideTimer;
       let restoredLegacyData = false;
       let retainedLegacyClassNotes = false;
+      let cloudUser = null;
+      let cloudReady = false;
+      let cloudSaveTimer;
+      let cloudSyncInFlight = false;
+      let cloudSaveQueued = false;
+      let offlineMode = false;
 
       const $ = (selector) => document.querySelector(selector);
       const $$ = (selector) => [...document.querySelectorAll(selector)];
+
+      function setAuthStatus(message, error = false) {
+        const status = $("#auth-status");
+        if (!status) return;
+        status.textContent = message;
+        status.classList.toggle("error", error);
+      }
+
+      function setStorageStatus(message, mode = "cloud") {
+        const status = $("#storage-note");
+        if (!status) return;
+        status.innerHTML = `<span>●</span> ${escapeHtml(message)}`;
+        status.classList.toggle("cloud", mode === "cloud");
+        status.classList.toggle("offline", mode === "offline");
+      }
+
+      function showAuthScreen(message = "Sign in to sync your planner.") {
+        $("#auth-screen").hidden = false;
+        $("#welcome-screen").hidden = true;
+        $("#planner-app").hidden = true;
+        setAuthStatus(message);
+      }
+
+      function showWelcomeScreen() {
+        $("#auth-screen").hidden = true;
+        $("#welcome-screen").hidden = false;
+        $("#planner-app").hidden = true;
+      }
+
+      function plannerHasContent(value) {
+        if (!value) return false;
+        const hasNotes = Object.values(value.classNotes || {}).some((note) => noteText(note).trim());
+        return (Array.isArray(value.events) && value.events.length > 0)
+          || (Array.isArray(value.tasks) && value.tasks.length > 0)
+          || Boolean(noteText(value.notes || "").trim())
+          || hasNotes;
+      }
+
+      function copyPlannerState(value) {
+        return JSON.parse(JSON.stringify(value));
+      }
+
+      function normalisePlannerState(saved) {
+        if (!saved || !Array.isArray(saved.events) || !Array.isArray(saved.tasks)) return emptyState();
+        const loaded = {
+          ...saved,
+          classNotes: saved.classNotes && typeof saved.classNotes === "object" && !Array.isArray(saved.classNotes) ? saved.classNotes : {}
+        };
+        if (loaded.classNotesVersion !== CLASS_NOTES_VERSION) {
+          loaded.classNotes = {};
+          loaded.classNotesVersion = CLASS_NOTES_VERSION;
+        }
+        return loaded;
+      }
+
+      function localStateForUser(userId) {
+        const currentOwner = localStorage.getItem(CLOUD_OWNER_KEY);
+        if (currentOwner && currentOwner !== userId) return emptyState();
+        return copyPlannerState(state);
+      }
+
+      async function syncCloudNow() {
+        if (!cloudClient || !cloudUser) return false;
+        if (cloudSyncInFlight) {
+          cloudSaveQueued = true;
+          return true;
+        }
+        cloudSyncInFlight = true;
+        const { error } = await cloudClient.from("planner_data").upsert({
+          user_id: cloudUser.id,
+          data: copyPlannerState(state),
+          updated_at: new Date().toISOString()
+        }, { onConflict: "user_id" });
+        cloudSyncInFlight = false;
+        if (error) {
+          console.warn("Cloud save failed", error);
+          setStorageStatus("cloud save failed · local copy kept", "offline");
+        } else {
+          setStorageStatus("saved to cloud", "cloud");
+        }
+        if (cloudSaveQueued) {
+          cloudSaveQueued = false;
+          queueCloudSave();
+        }
+        return !error;
+      }
+
+      function queueCloudSave() {
+        if (!cloudReady || !cloudUser || offlineMode) return;
+        clearTimeout(cloudSaveTimer);
+        cloudSaveTimer = setTimeout(() => { syncCloudNow(); }, 700);
+      }
+
+      let cloudLoadPromise = null;
+      async function loadCloudForUser(user) {
+        if (!cloudClient || !user) return false;
+        if (cloudLoadPromise && cloudUser?.id === user.id) return cloudLoadPromise;
+        cloudUser = user;
+        cloudLoadPromise = (async () => {
+          cloudReady = false;
+          offlineMode = false;
+          showAuthScreen("Loading your planner from the cloud…");
+          const localState = localStateForUser(user.id);
+          const { data: row, error } = await cloudClient.from("planner_data").select("data, updated_at").eq("user_id", user.id).maybeSingle();
+          if (error) {
+            console.warn("Cloud load failed", error);
+            setAuthStatus("The cloud planner could not be loaded. Your local copy is still safe.", true);
+            return false;
+          }
+          const remoteState = row?.data ? normalisePlannerState(row.data) : null;
+          if (plannerHasContent(remoteState)) {
+            if (plannerHasContent(localState) && JSON.stringify(localState) !== JSON.stringify(remoteState)) {
+              localStorage.setItem(`${STORAGE_KEY}:local-backup:${user.id}`, JSON.stringify(localState));
+            }
+            state = remoteState;
+          } else {
+            state = localState;
+          }
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+          localStorage.setItem(CLOUD_OWNER_KEY, user.id);
+          if (!plannerHasContent(remoteState)) {
+            const uploaded = await syncCloudNow();
+            if (!uploaded) {
+              setAuthStatus("Cloud saving failed. Your local copy is still safe.", true);
+              return false;
+            }
+          }
+          cloudReady = true;
+          setStorageStatus("saved to cloud", "cloud");
+          renderAll();
+          showWelcomeScreen();
+          return true;
+        })();
+        try {
+          return await cloudLoadPromise;
+        } finally {
+          cloudLoadPromise = null;
+        }
+      }
+
+      async function initialiseCloud() {
+        if (!cloudClient) {
+          showAuthScreen("Cloud connection unavailable · you can continue offline.");
+          return;
+        }
+        cloudClient.auth.onAuthStateChange((event, session) => {
+          if (event === "SIGNED_IN" && session?.user) setTimeout(() => loadCloudForUser(session.user), 0);
+          if (event === "SIGNED_OUT") {
+            cloudUser = null;
+            cloudReady = false;
+            offlineMode = false;
+            showAuthScreen("You have been signed out.");
+          }
+        });
+        const { data, error } = await cloudClient.auth.getSession();
+        if (error) {
+          showAuthScreen("Please sign in to sync your planner.");
+          return;
+        }
+        if (data.session?.user) await loadCloudForUser(data.session.user);
+        else showAuthScreen("Sign in to sync your planner.");
+      }
 
       let state = loadState();
       if (restoredLegacyData) showToast(retainedLegacyClassNotes ? "Older class notes remain in the untouched shared backup" : "Older planner data copied to your separate storage");
@@ -1089,6 +1329,7 @@
 
       function saveState(message) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        queueCloudSave();
         if (message) showToast(message);
       }
 
@@ -1558,6 +1799,7 @@
             if (item?.repeat && event.currentTarget.dataset.classDate === item.date) delete state.classNotes[item.id];
             state.classNotesVersion = CLASS_NOTES_VERSION;
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            queueCloudSave();
             const status = event.currentTarget.closest(".class-card").querySelector("[data-class-status]");
             status.textContent = "saving…";
             window.classNoteTimers = window.classNoteTimers || {};
@@ -1569,6 +1811,7 @@
             const noteKey = event.currentTarget.dataset.classNotes;
             delete state.classNotes[noteKey];
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            queueCloudSave();
             renderClasses();
           });
         });
@@ -1722,6 +1965,22 @@
           runNoteCommand(noteTool.dataset.noteCommand, noteTool.closest(".note-composer")?.querySelector(".note-editor"));
           return;
         }
+        const offlineButton = event.target.closest("[data-continue-offline]");
+        if (offlineButton) {
+          offlineMode = true;
+          cloudReady = false;
+          cloudUser = null;
+          setStorageStatus("local-only mode", "offline");
+          renderAll();
+          showWelcomeScreen();
+          return;
+        }
+        const signOutButton = event.target.closest("[data-sign-out]");
+        if (signOutButton) {
+          if (cloudClient) cloudClient.auth.signOut();
+          else showAuthScreen("You have been signed out.");
+          return;
+        }
         const enterPlannerButton = event.target.closest("[data-enter-planner]");
         if (enterPlannerButton) { enterPlanner(); return; }
         const dismissNudge = event.target.closest("[data-dismiss-nudge]");
@@ -1806,6 +2065,23 @@
       $("#event-repeat").addEventListener("change", updateRepeatVisibility);
       $("#event-date").addEventListener("change", updateRepeatVisibility);
       $("#class-note-occurrence").addEventListener("change", updateClassNoteDialogInput);
+      $("#auth-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (!cloudClient) {
+          setAuthStatus("The cloud connection could not load. Try refreshing the page.", true);
+          return;
+        }
+        const button = $("#auth-submit");
+        button.disabled = true;
+        setAuthStatus("Signing in…");
+        const { error } = await cloudClient.auth.signInWithPassword({
+          email: $("#auth-email").value.trim(),
+          password: $("#auth-password").value
+        });
+        if (error) setAuthStatus(error.message || "Those login details were not accepted.", true);
+        else setAuthStatus("Signed in · loading your planner…");
+        button.disabled = false;
+      });
       $("#clear-confirm-checkbox").addEventListener("change", (event) => {
         $("#confirm-clear").disabled = !event.target.checked;
       });
@@ -1876,6 +2152,7 @@
       $("#notes-input").addEventListener("input", (event) => {
         state.notes = sanitizeNoteHtml(event.currentTarget.innerHTML);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        queueCloudSave();
         $("#notes-status").textContent = "saving…";
         clearTimeout(window.notesSaveTimer);
         window.notesSaveTimer = setTimeout(() => { $("#notes-status").textContent = "saved locally"; }, 500);
@@ -1888,6 +2165,7 @@
       renderAll();
       setInterval(renderClock, 1000);
       setInterval(showEncouragement, ENCOURAGEMENT_INTERVAL);
+      initialiseCloud();
     })();
   </script>
 </body>
