@@ -90,11 +90,15 @@
     .auth-title { margin: 18px 0 8px; color: var(--ink); font-size: clamp(31px, 5vw, 48px); font-weight: 600; line-height: 1; letter-spacing: -0.055em; }
     .auth-copy { margin: 0 0 25px; color: var(--muted); font-size: 13px; }
     .auth-form { display: grid; gap: 13px; }
+    .auth-form[hidden] { display: none; }
     .auth-field { display: grid; gap: 6px; }
     .auth-field label { color: var(--muted); font-family: var(--mono); font-size: 10px; text-transform: uppercase; }
     .auth-field input { width: 100%; padding: 11px 12px; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--ink); background: rgba(255, 253, 247, 0.82); outline: 0; }
     .auth-field input:focus { border-color: var(--mint-deep); box-shadow: 0 0 0 3px rgba(169, 197, 161, 0.18); }
     .auth-submit { width: 100%; margin-top: 6px; }
+    .auth-link { display: block; width: 100%; margin: 11px 0 0; padding: 0; border: 0; color: var(--mint-deep); background: transparent; font-family: var(--mono); font-size: 10px; text-align: center; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+    .auth-link:hover { color: var(--ink); }
+    .auth-back { width: 100%; margin-top: 0; }
     .auth-status { min-height: 18px; margin: 13px 0 0; color: var(--muted); font-family: var(--mono); font-size: 10px; }
     .auth-status.error { color: #a35f55; }
     .auth-offline { width: 100%; margin-top: 8px; }
@@ -638,7 +642,7 @@
       <div class="welcome-mark" aria-hidden="true">+</div>
       <p class="welcome-eyebrow">study planner / cloud sign-in</p>
       <h1 class="auth-title" id="auth-title">Your planner, wherever you work.</h1>
-      <p class="auth-copy">Sign in to keep your calendar, tasks and notes safely synced with the cloud.</p>
+      <p class="auth-copy" id="auth-copy">Sign in to keep your calendar, tasks and notes safely synced with the cloud.</p>
       <form class="auth-form" id="auth-form">
         <div class="auth-field">
           <label for="auth-email">Email</label>
@@ -650,6 +654,29 @@
         </div>
         <button class="button primary auth-submit" type="submit" id="auth-submit">sign in and sync</button>
       </form>
+      <button class="auth-link" type="button" data-show-reset-request>forgot password?</button>
+
+      <form class="auth-form" id="reset-request-form" hidden>
+        <div class="auth-field">
+          <label for="reset-email">Email</label>
+          <input id="reset-email" type="email" autocomplete="email" required placeholder="you@example.com" />
+        </div>
+        <button class="button primary auth-submit" type="submit" id="reset-request-submit">email me a reset link</button>
+        <button class="button ghost auth-back" type="button" data-back-to-sign-in>back to sign in</button>
+      </form>
+
+      <form class="auth-form" id="password-update-form" hidden>
+        <div class="auth-field">
+          <label for="new-password">New password</label>
+          <input id="new-password" type="password" autocomplete="new-password" minlength="8" required placeholder="At least 8 characters" />
+        </div>
+        <div class="auth-field">
+          <label for="confirm-password">Confirm new password</label>
+          <input id="confirm-password" type="password" autocomplete="new-password" minlength="8" required placeholder="Enter it again" />
+        </div>
+        <button class="button primary auth-submit" type="submit" id="password-update-submit">set new password</button>
+      </form>
+
       <p class="auth-status" id="auth-status" role="status" aria-live="polite">Your data will remain available locally as a fallback.</p>
       <button class="button ghost auth-offline" type="button" data-continue-offline>continue offline for now</button>
     </div>
@@ -982,6 +1009,7 @@
       let cloudSyncInFlight = false;
       let cloudSaveQueued = false;
       let offlineMode = false;
+      let passwordRecoveryMode = false;
 
       const $ = (selector) => document.querySelector(selector);
       const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -991,6 +1019,30 @@
         if (!status) return;
         status.textContent = message;
         status.classList.toggle("error", error);
+      }
+
+      function setAuthView(view) {
+        const copy = {
+          signIn: {
+            title: "Your planner, wherever you work.",
+            message: "Sign in to keep your calendar, tasks and notes safely synced with the cloud."
+          },
+          requestReset: {
+            title: "Reset your planner password.",
+            message: "Enter your email and we’ll send you a secure reset link."
+          },
+          updatePassword: {
+            title: "Choose a new password.",
+            message: "Set a new password for your study planner account."
+          }
+        }[view] || {};
+        $("#auth-title").textContent = copy.title || "Your planner, wherever you work.";
+        $("#auth-copy").textContent = copy.message || "Sign in to keep your planner safely synced with the cloud.";
+        $("#auth-form").hidden = view !== "signIn";
+        $("#reset-request-form").hidden = view !== "requestReset";
+        $("#password-update-form").hidden = view !== "updatePassword";
+        $("[data-show-reset-request]").hidden = view !== "signIn";
+        $("[data-continue-offline]").hidden = view !== "signIn";
       }
 
       function setStorageStatus(message, mode = "cloud") {
@@ -1005,7 +1057,33 @@
         $("#auth-screen").hidden = false;
         $("#welcome-screen").hidden = true;
         $("#planner-app").hidden = true;
+        setAuthView("signIn");
         setAuthStatus(message);
+      }
+
+      function showPasswordRecoveryScreen(user = null) {
+        passwordRecoveryMode = true;
+        cloudUser = user || cloudUser;
+        cloudReady = false;
+        offlineMode = false;
+        $("#auth-screen").hidden = false;
+        $("#welcome-screen").hidden = true;
+        $("#planner-app").hidden = true;
+        setAuthView("updatePassword");
+        setAuthStatus("Choose a new password to finish the reset.");
+        try {
+          window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.search}`);
+        } catch (error) {
+          console.warn("Could not clean the recovery URL", error);
+        }
+        $("#new-password").focus();
+      }
+
+      function passwordResetRedirectUrl() {
+        const url = new URL(window.location.href);
+        url.hash = "";
+        url.search = "";
+        return url.toString();
       }
 
       function showWelcomeScreen() {
@@ -1131,20 +1209,28 @@
           return;
         }
         cloudClient.auth.onAuthStateChange((event, session) => {
-          if (event === "SIGNED_IN" && session?.user) setTimeout(() => loadCloudForUser(session.user), 0);
+          if (event === "PASSWORD_RECOVERY") {
+            showPasswordRecoveryScreen(session?.user || null);
+            return;
+          }
+          if (event === "SIGNED_IN" && session?.user && !passwordRecoveryMode) setTimeout(() => loadCloudForUser(session.user), 0);
           if (event === "SIGNED_OUT") {
             cloudUser = null;
             cloudReady = false;
             offlineMode = false;
+            passwordRecoveryMode = false;
             showAuthScreen("You have been signed out.");
           }
         });
+        const recoveryLinkInUrl = /(?:type=recovery|access_token=)/i.test(window.location.hash);
+        if (recoveryLinkInUrl) passwordRecoveryMode = true;
         const { data, error } = await cloudClient.auth.getSession();
         if (error) {
           showAuthScreen("Please sign in to sync your planner.");
           return;
         }
-        if (data.session?.user) await loadCloudForUser(data.session.user);
+        if (passwordRecoveryMode && data.session?.user) showPasswordRecoveryScreen(data.session.user);
+        else if (data.session?.user) await loadCloudForUser(data.session.user);
         else showAuthScreen("Sign in to sync your planner.");
       }
 
@@ -2080,6 +2166,70 @@
         });
         if (error) setAuthStatus(error.message || "Those login details were not accepted.", true);
         else setAuthStatus("Signed in · loading your planner…");
+        button.disabled = false;
+      });
+      $("[data-show-reset-request]").addEventListener("click", () => {
+        $("#reset-email").value = $("#auth-email").value.trim();
+        setAuthView("requestReset");
+        setAuthStatus("Enter your email to receive a reset link.");
+        $("#reset-email").focus();
+      });
+      $("[data-back-to-sign-in]").addEventListener("click", () => {
+        setAuthView("signIn");
+        setAuthStatus("Sign in to sync your planner.");
+        $("#auth-email").focus();
+      });
+      $("#reset-request-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (!cloudClient) {
+          setAuthStatus("The cloud connection could not load. Try refreshing the page.", true);
+          return;
+        }
+        if (window.location.protocol === "file:") {
+          setAuthStatus("Open the hosted website before requesting a reset link.", true);
+          return;
+        }
+        const button = $("#reset-request-submit");
+        button.disabled = true;
+        setAuthStatus("Sending your reset link…");
+        const { error } = await cloudClient.auth.resetPasswordForEmail($("#reset-email").value.trim(), {
+          redirectTo: passwordResetRedirectUrl()
+        });
+        if (error) setAuthStatus(error.message || "The reset email could not be sent.", true);
+        else setAuthStatus("Check your email, then use the newest reset link to choose a new password.");
+        button.disabled = false;
+      });
+      $("#password-update-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (!cloudClient) {
+          setAuthStatus("The cloud connection could not load. Try refreshing the page.", true);
+          return;
+        }
+        const password = $("#new-password").value;
+        const confirmation = $("#confirm-password").value;
+        if (password.length < 8) {
+          setAuthStatus("Use at least 8 characters for your new password.", true);
+          return;
+        }
+        if (password !== confirmation) {
+          setAuthStatus("Those two passwords do not match.", true);
+          return;
+        }
+        const button = $("#password-update-submit");
+        button.disabled = true;
+        setAuthStatus("Updating your password…");
+        const { error } = await cloudClient.auth.updateUser({ password });
+        if (error) {
+          setAuthStatus(error.message || "The password could not be updated.", true);
+          button.disabled = false;
+          return;
+        }
+        passwordRecoveryMode = false;
+        setAuthStatus("Password updated · loading your planner…");
+        const { data } = await cloudClient.auth.getUser();
+        const user = data?.user || cloudUser;
+        if (user) await loadCloudForUser(user);
+        else showAuthScreen("Password updated. Please sign in with your new password.");
         button.disabled = false;
       });
       $("#clear-confirm-checkbox").addEventListener("change", (event) => {
