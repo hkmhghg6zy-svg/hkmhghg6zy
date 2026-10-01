@@ -1273,7 +1273,9 @@
           } else {
             state = localState;
           }
-          if (typeof state.tutorialCompleted !== "boolean") {
+          if (typeof remoteState?.tutorialCompleted === "boolean") {
+            state.tutorialCompleted = remoteState.tutorialCompleted;
+          } else if (typeof state.tutorialCompleted !== "boolean") {
             state.tutorialCompleted = hasExistingCloudPlanner;
             tutorialMigrationNeedsSave = hasExistingCloudPlanner;
           }
