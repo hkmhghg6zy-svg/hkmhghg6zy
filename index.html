@@ -588,6 +588,22 @@
     .toast { position: fixed; right: 22px; bottom: 22px; z-index: 20; padding: 10px 13px; border: 1px solid rgba(118, 149, 111, 0.32); border-radius: 9px; color: var(--mint-deep); background: #fffdf7; box-shadow: var(--shadow); font-family: var(--mono); font-size: 11px; opacity: 0; pointer-events: none; transform: translateY(8px); transition: 180ms ease; }
     .toast.show { opacity: 1; transform: translateY(0); }
 
+    .tutorial-overlay[hidden] { display: none; }
+    .tutorial-overlay { position: fixed; z-index: 1000; inset: 0; pointer-events: auto; }
+    .tutorial-spotlight { position: fixed; border: 2px solid var(--mint-deep); border-radius: 14px; box-shadow: 0 0 0 9999px rgba(35, 39, 32, 0.58), 0 0 0 5px rgba(169, 197, 161, 0.30); transition: top 180ms ease, left 180ms ease, width 180ms ease, height 180ms ease; }
+    .tutorial-card { position: fixed; right: max(20px, env(safe-area-inset-right)); bottom: max(20px, env(safe-area-inset-bottom)); width: min(390px, calc(100vw - 40px)); padding: 20px; border: 1px solid var(--line); border-radius: 16px; color: var(--ink); background: var(--surface); box-shadow: 0 18px 55px rgba(0,0,0,.24); pointer-events: auto; }
+    .tutorial-card .eyebrow { margin-bottom: 7px; }
+    .tutorial-card h2 { margin: 0 0 8px; font-size: 20px; letter-spacing: -.03em; }
+    .tutorial-card p { margin: 0; color: var(--muted); font-size: 13px; }
+    .tutorial-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 18px; }
+    .tutorial-step-count { color: var(--faint); font-family: var(--mono); font-size: 10px; }
+    .tutorial-buttons { display: flex; gap: 7px; }
+    .tutorial-buttons .button { min-height: 34px; }
+    @media (max-width: 600px) {
+      .tutorial-card { right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); width: calc(100vw - 24px); padding: 17px; }
+      .tutorial-spotlight { border-radius: 10px; }
+    }
+
     @media (max-width: 1080px) {
       .app-shell { grid-template-columns: 205px minmax(0, 1fr); }
       .content-grid, .bottom-grid { grid-template-columns: 1fr; }
@@ -974,6 +990,23 @@
 
   <input id="calendar-file-input" type="file" accept=".ics,text/calendar" hidden />
 
+  <div class="tutorial-overlay" id="tutorial-overlay" hidden aria-hidden="true">
+    <div class="tutorial-spotlight" id="tutorial-spotlight" aria-hidden="true"></div>
+    <section class="tutorial-card" role="dialog" aria-modal="true" aria-labelledby="tutorial-title" aria-describedby="tutorial-copy">
+      <p class="eyebrow" id="tutorial-progress">quick tour · 1 of 5</p>
+      <h2 id="tutorial-title">Your planner, at a glance</h2>
+      <p id="tutorial-copy"></p>
+      <div class="tutorial-actions">
+        <span class="tutorial-step-count" id="tutorial-step-count">1 / 5</span>
+        <div class="tutorial-buttons">
+          <button class="button ghost small" type="button" data-tutorial-action="skip">skip tour</button>
+          <button class="button small" type="button" data-tutorial-action="back" hidden>back</button>
+          <button class="button primary small" type="button" data-tutorial-action="next">next</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1199,7 +1232,7 @@
         const activeElement = document.activeElement;
         const userIsEditing = activeElement?.matches('input:not([type="button"]):not([type="submit"]):not([type="reset"]), textarea, select, [contenteditable="true"]');
         const dialogIsOpen = document.querySelector("dialog[open]") !== null;
-        if (document.visibilityState !== "visible" || userIsEditing || dialogIsOpen || passwordRecoveryMode || cloudLoadPromise || cloudSaveTimer || cloudSyncInFlight || cloudSaveQueued) {
+        if (document.visibilityState !== "visible" || userIsEditing || dialogIsOpen || beginnerTutorialActive || passwordRecoveryMode || cloudLoadPromise || cloudSaveTimer || cloudSyncInFlight || cloudSaveQueued) {
           scheduleAutoReload(APP_AUTO_RELOAD_RETRY);
           return;
         }
@@ -1229,7 +1262,9 @@
             setAuthStatus("The cloud planner could not be loaded. Your local copy is still safe.", true);
             return false;
           }
+          const hasExistingCloudPlanner = Boolean(row?.data);
           const remoteState = row?.data ? normalisePlannerState(row.data) : null;
+          let tutorialMigrationNeedsSave = false;
           if (plannerHasContent(remoteState)) {
             if (plannerHasContent(localState) && JSON.stringify(localState) !== JSON.stringify(remoteState)) {
               localStorage.setItem(`${STORAGE_KEY}:local-backup:${user.id}`, JSON.stringify(localState));
@@ -1237,6 +1272,10 @@
             state = remoteState;
           } else {
             state = localState;
+          }
+          if (typeof state.tutorialCompleted !== "boolean") {
+            state.tutorialCompleted = hasExistingCloudPlanner;
+            tutorialMigrationNeedsSave = hasExistingCloudPlanner;
           }
           localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
           localStorage.setItem(CLOUD_OWNER_KEY, user.id);
@@ -1250,6 +1289,7 @@
           cloudReady = true;
           setStorageStatus("saved to cloud", "cloud");
           setEditorSaveStatus("saved to cloud");
+          if (tutorialMigrationNeedsSave) saveState();
           renderAll();
           showWelcomeScreen();
           return true;
@@ -1299,6 +1339,92 @@
         $("#welcome-screen").hidden = true;
         $("#planner-app").hidden = false;
         window.scrollTo(0, 0);
+        if (cloudUser && cloudReady && state.tutorialCompleted !== true) startBeginnerTutorial();
+      }
+
+      const beginnerTutorialSteps = [
+        { target: "#calendar", title: "Your calendar", copy: "Add lectures, deadlines, study sessions, or import your calendar. Select a day to see its events and add notes to any event." },
+        { target: "#classes", title: "Notes for any event", copy: "Use “add notes” to attach notes to a calendar event. Notes stay with that event, even if it is not a lecture." },
+        { target: "#tasks", title: "Your to-do list", copy: "Add tasks, set due dates, and use the square or status label to track your progress." },
+        { target: "#notes", title: "General notes", copy: "Keep ideas and reminders here. The formatting buttons let you style your notes as you write." },
+        { target: "#storage-note", title: "Saved to your account", copy: "This status shows when your planner is synced to your private cloud account. Your planner data belongs to your account." }
+      ];
+      let beginnerTutorialIndex = 0;
+      let beginnerTutorialActive = false;
+
+      function positionBeginnerTutorial() {
+        if (!beginnerTutorialActive) return;
+        const target = document.querySelector(beginnerTutorialSteps[beginnerTutorialIndex].target);
+        const spotlight = $("#tutorial-spotlight");
+        if (!target) return;
+        const rect = target.getBoundingClientRect();
+        const pad = 5;
+        spotlight.style.top = `${Math.max(6, rect.top - pad)}px`;
+        spotlight.style.left = `${Math.max(6, rect.left - pad)}px`;
+        spotlight.style.width = `${Math.min(window.innerWidth - 12, rect.width + pad * 2)}px`;
+        spotlight.style.height = `${Math.min(window.innerHeight - 12, rect.height + pad * 2)}px`;
+      }
+
+      function renderBeginnerTutorial() {
+        const step = beginnerTutorialSteps[beginnerTutorialIndex];
+        document.querySelector(step.target)?.scrollIntoView({ behavior: "smooth", block: "center" });
+        $("#tutorial-progress").textContent = `quick tour · ${beginnerTutorialIndex + 1} of ${beginnerTutorialSteps.length}`;
+        $("#tutorial-step-count").textContent = `${beginnerTutorialIndex + 1} / ${beginnerTutorialSteps.length}`;
+        $("#tutorial-title").textContent = step.title;
+        $("#tutorial-copy").textContent = step.copy;
+        $("[data-tutorial-action='back']").hidden = beginnerTutorialIndex === 0;
+        $("[data-tutorial-action='next']").textContent = beginnerTutorialIndex === beginnerTutorialSteps.length - 1 ? "finish" : "next";
+        requestAnimationFrame(positionBeginnerTutorial);
+      }
+
+      function startBeginnerTutorial() {
+        if (beginnerTutorialActive || state.tutorialCompleted === true) return;
+        beginnerTutorialActive = true;
+        beginnerTutorialIndex = 0;
+        $("#tutorial-overlay").hidden = false;
+        $("#tutorial-overlay").setAttribute("aria-hidden", "false");
+        renderBeginnerTutorial();
+        window.addEventListener("resize", positionBeginnerTutorial);
+        window.addEventListener("scroll", positionBeginnerTutorial, true);
+        $("#tutorial-overlay").addEventListener("keydown", beginnerTutorialKeyHandler);
+        $("[data-tutorial-action='next']").focus();
+      }
+
+      function beginnerTutorialKeyHandler(event) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          endBeginnerTutorial();
+          return;
+        }
+        if (event.key !== "Tab") return;
+        const buttons = [...$("#tutorial-overlay").querySelectorAll("button:not([hidden])")];
+        const first = buttons[0];
+        const last = buttons[buttons.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      }
+
+      function endBeginnerTutorial() {
+        if (!beginnerTutorialActive) return;
+        beginnerTutorialActive = false;
+        $("#tutorial-overlay").hidden = true;
+        $("#tutorial-overlay").setAttribute("aria-hidden", "true");
+        window.removeEventListener("resize", positionBeginnerTutorial);
+        window.removeEventListener("scroll", positionBeginnerTutorial, true);
+        $("#tutorial-overlay").removeEventListener("keydown", beginnerTutorialKeyHandler);
+        state.tutorialCompleted = true;
+        saveState();
+      }
+
+      function handleBeginnerTutorialAction(action) {
+        if (!beginnerTutorialActive) return;
+        if (action === "skip") { endBeginnerTutorial(); return; }
+        if (action === "back") beginnerTutorialIndex = Math.max(0, beginnerTutorialIndex - 1);
+        if (action === "next") {
+          if (beginnerTutorialIndex === beginnerTutorialSteps.length - 1) { endBeginnerTutorial(); return; }
+          beginnerTutorialIndex += 1;
+        }
+        renderBeginnerTutorial();
       }
 
       function startOfDay(date) {
@@ -2127,6 +2253,8 @@
         }
         const enterPlannerButton = event.target.closest("[data-enter-planner]");
         if (enterPlannerButton) { enterPlanner(); return; }
+        const tutorialAction = event.target.closest("[data-tutorial-action]");
+        if (tutorialAction) { handleBeginnerTutorialAction(tutorialAction.dataset.tutorialAction); return; }
         const dismissNudge = event.target.closest("[data-dismiss-nudge]");
         if (dismissNudge) { hideEncouragement(); return; }
         const openClassNoteButton = event.target.closest("[data-open-class-note]");
