@@ -528,8 +528,12 @@
     .task-check.in-progress { border-color: var(--amber); color: var(--amber); background: rgba(194, 139, 87, 0.11); }
     .task-check.done { border-color: var(--mint-deep); color: #fffdf7; background: var(--mint-deep); }
     .task-copy { min-width: 0; }
-    .task-title { overflow: hidden; color: var(--ink); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .task-title { display: block; width: 100%; overflow: hidden; padding: 0; border: 0; color: var(--ink); background: transparent; cursor: pointer; font-size: 12px; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+    .task-title:hover { color: var(--mint-deep); }
+    .task-title:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
     .task-row.done .task-title { color: var(--faint); text-decoration: line-through; }
+    .task-row.expanded { align-items: start; }
+    .task-row.expanded .task-title { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
     .task-detail { overflow: hidden; margin-top: 2px; color: var(--faint); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
     .status-button { padding: 5px 7px; border: 1px solid rgba(194, 139, 87, 0.30); border-radius: 5px; color: var(--amber); background: rgba(194, 139, 87, 0.08); cursor: pointer; font-family: var(--mono); font-size: 9px; white-space: nowrap; }
     .status-button.done { border-color: rgba(118, 149, 111, 0.30); color: var(--mint-deep); background: rgba(169, 197, 161, 0.12); }
@@ -1033,6 +1037,7 @@
       let selectedDate = toDateKey(today);
       let calendarCursor = new Date(today.getFullYear(), today.getMonth(), 1, 12);
       let activeFilter = "all";
+      const expandedTaskIds = new Set();
       let toastTimer;
       const ENCOURAGEMENT_INTERVAL = 5 * 60 * 1000;
       const encouragementMessages = [
@@ -2154,9 +2159,10 @@
           list.innerHTML = visible.map((task) => {
             const due = task.due ? `due ${dateLabel(task.due, { day: "numeric", month: "short" })}` : "no due date";
             const statusText = task.status === "done" ? "done" : task.status === "in-progress" ? "in progress" : "not started";
-            return `<div class="task-row ${task.status === "done" ? "done" : ""}">
+            const expanded = expandedTaskIds.has(task.id);
+            return `<div class="task-row ${task.status === "done" ? "done" : ""} ${expanded ? "expanded" : ""}">
               <button class="task-check ${task.status}" type="button" data-toggle-task="${task.id}" aria-label="Mark ${escapeHtml(task.title)} ${task.status === "done" ? "not done" : "done"}">${task.status === "done" ? "✓" : task.status === "in-progress" ? "·" : ""}</button>
-              <div class="task-copy"><div class="task-title">${escapeHtml(task.title)}</div><div class="task-detail">${escapeHtml(task.subject || "general")} · ${due}</div></div>
+              <div class="task-copy"><button class="task-title" type="button" data-toggle-task-details="${task.id}" aria-expanded="${expanded}" aria-label="${expanded ? "Collapse" : "Show full"} task: ${escapeHtml(task.title)}" title="${expanded ? "Collapse task" : "Show full task"}">${escapeHtml(task.title)}</button><div class="task-detail">${escapeHtml(task.subject || "general")} · ${due}</div></div>
               <button class="status-button ${task.status === "done" ? "done" : ""}" type="button" data-cycle-task="${task.id}">${statusText}</button>
               <button class="delete-button" type="button" data-delete-task="${task.id}" aria-label="Delete ${escapeHtml(task.title)}">×</button>
             </div>`;
@@ -2394,6 +2400,14 @@
         if (dateButton) { selectDate(dateButton.dataset.date); return; }
         const filterButton = event.target.closest("[data-filter]");
         if (filterButton) { activeFilter = filterButton.dataset.filter; renderTasks(); return; }
+        const toggleTaskDetails = event.target.closest("[data-toggle-task-details]");
+        if (toggleTaskDetails) {
+          const taskId = toggleTaskDetails.dataset.toggleTaskDetails;
+          if (expandedTaskIds.has(taskId)) expandedTaskIds.delete(taskId);
+          else expandedTaskIds.add(taskId);
+          renderTasks();
+          return;
+        }
         const toggleTask = event.target.closest("[data-toggle-task]");
         if (toggleTask) {
           const task = state.tasks.find((item) => item.id === toggleTask.dataset.toggleTask);
