@@ -510,6 +510,21 @@
     .note-page-toolbar select { min-width: 0; max-width: 220px; padding: 5px 8px; border: 1px solid var(--line-strong); border-radius: 7px; color: var(--ink); background: rgba(255, 253, 247, 0.82); font-size: 11px; }
     .note-page-toolbar .button { margin-left: auto; flex-shrink: 0; }
     @media (max-width: 500px) { .note-page-toolbar select { flex: 1; max-width: none; } }
+
+    .note-focus-backdrop[hidden] { display: none; }
+    .note-focus-backdrop { position: fixed; z-index: 10020; inset: 0; background: rgba(39, 44, 37, 0.24); backdrop-filter: blur(6px); }
+    .notes-panel.note-focus-active, .class-card.note-focus-active { position: fixed; z-index: 10021; top: 50%; left: 50%; width: min(900px, calc(100vw - 32px)); max-height: 88vh; overflow-y: auto; border: 1px solid var(--line-strong); border-radius: 16px; background: var(--surface); box-shadow: 0 28px 90px rgba(32, 36, 29, 0.28); transform: translate(-50%, -50%); }
+    .notes-panel.note-focus-active { padding: 24px; }
+    .class-card.note-focus-active { width: min(840px, calc(100vw - 32px)); padding: 22px; }
+    .note-focus-close { position: absolute; z-index: 2; top: 10px; right: 10px; display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--muted); background: var(--surface); cursor: pointer; font-size: 19px; line-height: 1; }
+    .note-focus-close:hover { color: var(--ink); background: var(--surface-3); }
+    .notes-panel.note-focus-active > .panel-heading { padding-right: 36px; }
+    .class-card.note-focus-active .class-card-header { padding-right: 38px; }
+    .class-card.note-focus-active .class-note-composer .note-editor { height: min(52vh, 520px); max-height: 52vh; overflow-y: auto; }
+    @media (max-width: 600px) {
+      .notes-panel.note-focus-active, .class-card.note-focus-active { width: calc(100vw - 20px); max-height: 90vh; padding: 16px; border-radius: 13px; }
+      .class-card.note-focus-active .class-note-composer .note-editor { height: 48vh; max-height: 48vh; }
+    }
     .class-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; color: var(--faint); font-size: 10px; }
     .class-status { font-family: var(--mono); }
     .class-calendar-link { padding: 0; border: 0; color: var(--mint-deep); background: transparent; cursor: pointer; font-family: var(--mono); font-size: 10px; }
@@ -1021,6 +1036,7 @@
     </section>
   </div>
 
+  <div class="note-focus-backdrop" id="note-focus-backdrop" hidden aria-hidden="true"></div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1037,6 +1053,7 @@
       let selectedDate = toDateKey(today);
       let calendarCursor = new Date(today.getFullYear(), today.getMonth(), 1, 12);
       let activeFilter = "all";
+      let focusedNoteContainer = null;
       const expandedTaskIds = new Set();
       let toastTimer;
       const ENCOURAGEMENT_INTERVAL = 5 * 60 * 1000;
@@ -1254,7 +1271,7 @@
         const activeElement = document.activeElement;
         const userIsEditing = activeElement?.matches('input:not([type="button"]):not([type="submit"]):not([type="reset"]), textarea, select, [contenteditable="true"]');
         const dialogIsOpen = document.querySelector("dialog[open]") !== null;
-        if (document.visibilityState !== "visible" || userIsEditing || dialogIsOpen || beginnerTutorialActive || passwordRecoveryMode || cloudLoadPromise || cloudSaveTimer || cloudSyncInFlight || cloudSaveQueued) {
+        if (document.visibilityState !== "visible" || userIsEditing || dialogIsOpen || beginnerTutorialActive || focusedNoteContainer || passwordRecoveryMode || cloudLoadPromise || cloudSaveTimer || cloudSyncInFlight || cloudSaveQueued) {
           scheduleAutoReload(APP_AUTO_RELOAD_RETRY);
           return;
         }
@@ -2193,25 +2210,66 @@
         input.setAttribute("aria-label", `${page.title} notes`);
         input.dataset.placeholder = `Write notes for ${page.title}…`;
         if (document.activeElement !== input) {
-          clearTimeout(noteEditorCollapseTimer);
           input.style.height = "229px";
           input.innerHTML = noteHtml(page.content || "");
         }
       }
 
-      let noteEditorCollapseTimer = null;
       function resetGeneralNotesEditorHeight() {
-        clearTimeout(noteEditorCollapseTimer);
         $("#notes-input").style.height = "229px";
       }
 
       function expandGeneralNotesEditor() {
         const input = $("#notes-input");
-        clearTimeout(noteEditorCollapseTimer);
+        if (focusedNoteContainer?.classList.contains("notes-panel")) {
+          input.style.height = `${Math.min(520, Math.max(229, Math.round(window.innerHeight * 0.52)))}px`;
+          return;
+        }
         input.style.height = "229px";
         const nextHeight = Math.min(420, Math.max(229, input.scrollHeight));
         input.style.height = `${nextHeight}px`;
-        noteEditorCollapseTimer = setTimeout(resetGeneralNotesEditorHeight, 2200);
+      }
+
+      function focusNoteContainer(container) {
+        if (!container || focusedNoteContainer === container) return;
+        if (focusedNoteContainer) closeNoteFocus();
+        focusedNoteContainer = container;
+        container.classList.add("note-focus-active");
+        const closeButton = document.createElement("button");
+        closeButton.className = "note-focus-close";
+        closeButton.type = "button";
+        closeButton.dataset.closeNoteFocus = "";
+        closeButton.setAttribute("aria-label", "Close enlarged notes");
+        closeButton.title = "Close enlarged notes";
+        closeButton.textContent = "×";
+        container.appendChild(closeButton);
+        const backdrop = $("#note-focus-backdrop");
+        backdrop.hidden = false;
+        backdrop.setAttribute("aria-hidden", "false");
+        if (container.classList.contains("notes-panel")) expandGeneralNotesEditor();
+      }
+
+      function closeNoteFocus() {
+        if (!focusedNoteContainer) return;
+        const container = focusedNoteContainer;
+        focusedNoteContainer = null;
+        container.classList.remove("note-focus-active");
+        container.querySelector(".note-focus-close")?.remove();
+        const backdrop = $("#note-focus-backdrop");
+        backdrop.hidden = true;
+        backdrop.setAttribute("aria-hidden", "true");
+        const editor = container.querySelector(".note-editor:focus");
+        if (editor) editor.blur();
+      }
+
+      function trapNoteFocusTab(event) {
+        if (!focusedNoteContainer || event.key !== "Tab") return;
+        const controls = [...focusedNoteContainer.querySelectorAll('button:not([disabled]), select, [contenteditable="true"]')].filter((control) => !control.hidden);
+        if (!controls.length) return;
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
       }
 
       function saveActiveNoteEditor() {
@@ -2339,6 +2397,8 @@
       });
 
       document.addEventListener("click", (event) => {
+        const closeNoteFocusButton = event.target.closest("[data-close-note-focus]");
+        if (closeNoteFocusButton) { closeNoteFocus(); return; }
         const activeClassEditor = document.activeElement;
         if (activeClassEditor?.matches("[data-class-notes]") && !event.target.closest(".class-note-composer")) activeClassEditor.blur();
         const noteTool = event.target.closest("[data-note-command]");
@@ -2609,6 +2669,21 @@
         closeDialog("task-dialog");
         renderAll();
       });
+
+      document.addEventListener("focusin", (event) => {
+        const editor = event.target.closest('[data-note-editor][contenteditable="true"]');
+        const container = editor?.closest(".notes-panel, .class-card");
+        if (container) focusNoteContainer(container);
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && focusedNoteContainer) {
+          event.preventDefault();
+          closeNoteFocus();
+          return;
+        }
+        trapNoteFocusTab(event);
+      });
+      $("#note-focus-backdrop").addEventListener("click", closeNoteFocus);
 
       $("#notes-page-select").addEventListener("change", (event) => {
         saveActiveNoteEditor();
