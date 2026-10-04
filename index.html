@@ -503,8 +503,13 @@
     .note-editor mark { padding: 0 2px; border-radius: 2px; background: #f4d98c; }
     .class-note-composer .note-editor { height: 112px; max-height: 112px; overflow-y: auto; }
     .class-note-composer:focus-within .note-editor { height: auto; max-height: none; overflow-y: visible; }
-    .notes-panel .note-editor { min-height: 229px; padding: 14px; background: rgba(255, 253, 247, 0.64); font-size: 12px; line-height: 1.7; }
+    .notes-panel .note-editor { height: 229px; min-height: 229px; max-height: 420px; overflow-y: auto; padding: 14px; background: rgba(255, 253, 247, 0.64); font-size: 12px; line-height: 1.7; transition: height 180ms ease; }
     .notes-panel .note-editor:focus { background: #fffdf7; }
+    .note-page-toolbar { display: flex; align-items: center; gap: 8px; padding: 7px; border-bottom: 1px solid var(--line); background: rgba(238, 231, 218, 0.30); }
+    .note-page-toolbar label { color: var(--muted); font-family: var(--mono); font-size: 10px; }
+    .note-page-toolbar select { min-width: 0; max-width: 220px; padding: 5px 8px; border: 1px solid var(--line-strong); border-radius: 7px; color: var(--ink); background: rgba(255, 253, 247, 0.82); font-size: 11px; }
+    .note-page-toolbar .button { margin-left: auto; flex-shrink: 0; }
+    @media (max-width: 500px) { .note-page-toolbar select { flex: 1; max-width: none; } }
     .class-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; color: var(--faint); font-size: 10px; }
     .class-status { font-family: var(--mono); }
     .class-calendar-link { padding: 0; border: 0; color: var(--mint-deep); background: transparent; cursor: pointer; font-family: var(--mono); font-size: 10px; }
@@ -866,6 +871,11 @@
               </div>
             </div>
             <div class="note-composer">
+              <div class="note-page-toolbar">
+                <label for="notes-page-select">Page</label>
+                <select id="notes-page-select" aria-label="Select a notes page"></select>
+                <button class="button small" id="notes-add-page" type="button">＋ new page</button>
+              </div>
               <div class="note-toolbar" role="toolbar" aria-label="General note formatting">
                 <button class="note-tool" type="button" data-note-command="bold" title="Bold" aria-label="Bold"><strong>B</strong></button>
                 <button class="note-tool" type="button" data-note-command="uppercase" title="Make selected text uppercase" aria-label="Make selected text uppercase">CAP</button>
@@ -1146,12 +1156,19 @@
         $("#planner-app").hidden = true;
       }
 
+      function valueHasNoteContent(value) {
+        const pages = Array.isArray(value?.notePages) ? value.notePages : [];
+        return Boolean(noteText(value?.notes || "").trim())
+          || pages.length > 1
+          || pages.some((page) => noteText(page?.content || "").trim());
+      }
+
       function plannerHasContent(value) {
         if (!value) return false;
         const hasNotes = Object.values(value.classNotes || {}).some((note) => noteText(note).trim());
         return (Array.isArray(value.events) && value.events.length > 0)
           || (Array.isArray(value.tasks) && value.tasks.length > 0)
-          || Boolean(noteText(value.notes || "").trim())
+          || valueHasNoteContent(value)
           || hasNotes;
       }
 
@@ -1169,7 +1186,7 @@
           loaded.classNotes = {};
           loaded.classNotesVersion = CLASS_NOTES_VERSION;
         }
-        return loaded;
+        return ensureNotePages(loaded);
       }
 
       function localStateForUser(userId) {
@@ -1565,8 +1582,36 @@
         editor.dispatchEvent(new Event("input", { bubbles: true }));
       }
 
+      function ensureNotePages(value) {
+        if (!value || typeof value !== "object") return value;
+        if (!Array.isArray(value.notePages) || value.notePages.length === 0) {
+          value.notePages = [{ id: "general-notes", title: "General notes", content: String(value.notes || "") }];
+        }
+        const seenIds = new Set();
+        value.notePages = value.notePages
+          .filter((page) => page && typeof page === "object")
+          .map((page, index) => {
+            let id = typeof page.id === "string" && page.id ? page.id : `note-page-${index + 1}`;
+            if (seenIds.has(id)) id = `note-page-${index + 1}-${Date.now()}`;
+            seenIds.add(id);
+            return {
+              id,
+              title: String(page.title || `Note page ${index + 1}`).trim() || `Note page ${index + 1}`,
+              content: String(page.content || "")
+            };
+          });
+        if (value.notePages.length === 0) {
+          value.notePages = [{ id: "general-notes", title: "General notes", content: String(value.notes || "") }];
+        }
+        if (!value.notePages.some((page) => page.id === value.activeNotePageId)) {
+          value.activeNotePageId = value.notePages[0].id;
+        }
+        value.notes = value.notePages[0].content;
+        return value;
+      }
+
       function emptyState() {
-        return { events: [], tasks: [], notes: "", classNotes: {}, classNotesVersion: CLASS_NOTES_VERSION };
+        return ensureNotePages({ events: [], tasks: [], notes: "", notePages: [{ id: "general-notes", title: "General notes", content: "" }], activeNotePageId: "general-notes", classNotes: {}, classNotesVersion: CLASS_NOTES_VERSION });
       }
 
       function loadState() {
@@ -1585,7 +1630,8 @@
               loaded.classNotes = {};
               loaded.classNotesVersion = CLASS_NOTES_VERSION;
             }
-            const hasPlannerData = loaded.events.length > 0 || loaded.tasks.length > 0 || Boolean(String(loaded.notes || "").trim()) || Object.keys(loaded.classNotes).length > 0;
+            ensureNotePages(loaded);
+            const hasPlannerData = loaded.events.length > 0 || loaded.tasks.length > 0 || valueHasNoteContent(loaded) || Object.keys(loaded.classNotes).length > 0;
             if (isUsingLegacyData && hasPlannerData) {
               retainedLegacyClassNotes = Boolean(hasLegacyClassNotes && saved.classNotesVersion !== CLASS_NOTES_VERSION);
               localStorage.setItem(STORAGE_KEY, JSON.stringify(loaded));
@@ -2119,9 +2165,67 @@
         $$("[data-filter]").forEach((button) => button.classList.toggle("active", button.dataset.filter === activeFilter));
       }
 
+      function activeNotePage() {
+        ensureNotePages(state);
+        return state.notePages.find((page) => page.id === state.activeNotePageId) || state.notePages[0];
+      }
+
       function renderNotes() {
+        ensureNotePages(state);
+        const select = $("#notes-page-select");
+        const selectedId = state.activeNotePageId;
+        select.innerHTML = "";
+        state.notePages.forEach((page) => {
+          const option = document.createElement("option");
+          option.value = page.id;
+          option.textContent = page.title;
+          select.appendChild(option);
+        });
+        select.value = selectedId;
+        const page = activeNotePage();
         const input = $("#notes-input");
-        if (document.activeElement !== input) input.innerHTML = noteHtml(state.notes || "");
+        input.setAttribute("aria-label", `${page.title} notes`);
+        input.dataset.placeholder = `Write notes for ${page.title}…`;
+        if (document.activeElement !== input) {
+          clearTimeout(noteEditorCollapseTimer);
+          input.style.height = "229px";
+          input.innerHTML = noteHtml(page.content || "");
+        }
+      }
+
+      let noteEditorCollapseTimer = null;
+      function resetGeneralNotesEditorHeight() {
+        clearTimeout(noteEditorCollapseTimer);
+        $("#notes-input").style.height = "229px";
+      }
+
+      function expandGeneralNotesEditor() {
+        const input = $("#notes-input");
+        clearTimeout(noteEditorCollapseTimer);
+        input.style.height = "229px";
+        const nextHeight = Math.min(420, Math.max(229, input.scrollHeight));
+        input.style.height = `${nextHeight}px`;
+        noteEditorCollapseTimer = setTimeout(resetGeneralNotesEditorHeight, 2200);
+      }
+
+      function saveActiveNoteEditor() {
+        const page = activeNotePage();
+        page.content = sanitizeNoteHtml($("#notes-input").innerHTML);
+        state.notes = state.notePages[0].content;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        queueCloudSave();
+      }
+
+      function createNotePage() {
+        const title = window.prompt("Name this note page", "New page");
+        if (title === null || !title.trim()) return;
+        saveActiveNoteEditor();
+        const page = { id: uid("note-page"), title: title.trim().slice(0, 60), content: "" };
+        state.notePages.push(page);
+        state.activeNotePageId = page.id;
+        saveState();
+        renderNotes();
+        $("#notes-input").focus();
       }
 
       function renderAll() {
@@ -2492,11 +2596,18 @@
         renderAll();
       });
 
-      $("#notes-input").addEventListener("input", (event) => {
-        state.notes = sanitizeNoteHtml(event.currentTarget.innerHTML);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-        queueCloudSave();
+      $("#notes-page-select").addEventListener("change", (event) => {
+        saveActiveNoteEditor();
+        state.activeNotePageId = event.currentTarget.value;
+        saveState();
+        renderNotes();
       });
+      $("#notes-add-page").addEventListener("click", createNotePage);
+      $("#notes-input").addEventListener("input", () => {
+        saveActiveNoteEditor();
+        expandGeneralNotesEditor();
+      });
+      $("#notes-input").addEventListener("blur", resetGeneralNotesEditorHeight);
 
       $$('dialog').forEach((dialog) => dialog.addEventListener("click", (event) => {
         if (event.target === dialog) closeDialog(dialog.id);
