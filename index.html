@@ -533,6 +533,8 @@
 
     .tasks-panel, .notes-panel { min-height: 330px; }
     .task-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+    .task-page-toolbar { margin: 0 0 12px; border: 1px solid var(--line); border-radius: 9px; }
+    .task-page-toolbar select { flex: 1; max-width: min(420px, 60vw); }
     .filter-list { display: flex; gap: 4px; }
     .filter-button { padding: 6px 8px; border: 1px solid transparent; border-radius: 6px; color: var(--faint); background: transparent; cursor: pointer; font-family: var(--mono); font-size: 10px; }
     .filter-button:hover, .filter-button.active { border-color: var(--line); color: var(--mint-deep); background: rgba(169, 197, 161, 0.13); }
@@ -871,6 +873,11 @@
               </div>
               <button class="button small" type="button" data-open-task>＋ task</button>
             </div>
+            <div class="note-page-toolbar task-page-toolbar">
+              <label for="task-list-select">List</label>
+              <select id="task-list-select" aria-label="Select a to-do list"></select>
+              <button class="button small" id="task-add-list" type="button">＋ new list</button>
+            </div>
             <div class="task-toolbar">
               <div class="filter-list" role="group" aria-label="Task filters">
                 <button class="filter-button active" type="button" data-filter="all">all</button>
@@ -1190,6 +1197,7 @@
         const hasNotes = Object.values(value.classNotes || {}).some((note) => noteText(note).trim());
         return (Array.isArray(value.events) && value.events.length > 0)
           || (Array.isArray(value.tasks) && value.tasks.length > 0)
+          || (Array.isArray(value.taskLists) && value.taskLists.length > 1)
           || valueHasNoteContent(value)
           || hasNotes;
       }
@@ -1208,7 +1216,7 @@
           loaded.classNotes = {};
           loaded.classNotesVersion = CLASS_NOTES_VERSION;
         }
-        return ensureNotePages(loaded);
+        return ensureTaskLists(ensureNotePages(loaded));
       }
 
       function localStateForUser(userId) {
@@ -1632,8 +1640,38 @@
         return value;
       }
 
+      function ensureTaskLists(value) {
+        if (!value || typeof value !== "object") return value;
+        if (!Array.isArray(value.tasks)) value.tasks = [];
+        if (!Array.isArray(value.taskLists) || value.taskLists.length === 0) {
+          value.taskLists = [{ id: "general-tasks", title: "General tasks" }];
+        }
+        const seenIds = new Set();
+        value.taskLists = value.taskLists
+          .filter((list) => list && typeof list === "object")
+          .map((list, index) => {
+            let id = typeof list.id === "string" && list.id ? list.id : `task-list-${index + 1}`;
+            if (seenIds.has(id)) id = `task-list-${index + 1}-${Date.now()}`;
+            seenIds.add(id);
+            return { id, title: String(list.title || `Task list ${index + 1}`).trim().slice(0, 60) || `Task list ${index + 1}` };
+          });
+        if (value.taskLists.length === 0) value.taskLists = [{ id: "general-tasks", title: "General tasks" }];
+        const defaultListId = value.taskLists[0].id;
+        value.tasks.forEach((task) => {
+          if (!task.taskListId) {
+            task.taskListId = defaultListId;
+          } else if (!value.taskLists.some((list) => list.id === task.taskListId)) {
+            value.taskLists.push({ id: task.taskListId, title: "Other tasks" });
+          }
+        });
+        if (!value.taskLists.some((list) => list.id === value.activeTaskListId)) {
+          value.activeTaskListId = defaultListId;
+        }
+        return value;
+      }
+
       function emptyState() {
-        return ensureNotePages({ events: [], tasks: [], notes: "", notePages: [{ id: "general-notes", title: "General notes", content: "" }], activeNotePageId: "general-notes", classNotes: {}, classNotesVersion: CLASS_NOTES_VERSION });
+        return ensureTaskLists(ensureNotePages({ events: [], tasks: [], taskLists: [{ id: "general-tasks", title: "General tasks" }], activeTaskListId: "general-tasks", notes: "", notePages: [{ id: "general-notes", title: "General notes", content: "" }], activeNotePageId: "general-notes", classNotes: {}, classNotesVersion: CLASS_NOTES_VERSION }));
       }
 
       function loadState() {
@@ -1652,8 +1690,8 @@
               loaded.classNotes = {};
               loaded.classNotesVersion = CLASS_NOTES_VERSION;
             }
-            ensureNotePages(loaded);
-            const hasPlannerData = loaded.events.length > 0 || loaded.tasks.length > 0 || valueHasNoteContent(loaded) || Object.keys(loaded.classNotes).length > 0;
+            ensureTaskLists(ensureNotePages(loaded));
+            const hasPlannerData = loaded.events.length > 0 || loaded.tasks.length > 0 || loaded.taskLists.length > 1 || valueHasNoteContent(loaded) || Object.keys(loaded.classNotes).length > 0;
             if (isUsingLegacyData && hasPlannerData) {
               retainedLegacyClassNotes = Boolean(hasLegacyClassNotes && saved.classNotesVersion !== CLASS_NOTES_VERSION);
               localStorage.setItem(STORAGE_KEY, JSON.stringify(loaded));
@@ -2166,9 +2204,36 @@
         }).join("");
       }
 
+      function renderTaskListMenu() {
+        ensureTaskLists(state);
+        const select = $("#task-list-select");
+        select.innerHTML = "";
+        state.taskLists.forEach((taskList) => {
+          const option = document.createElement("option");
+          option.value = taskList.id;
+          option.textContent = taskList.title;
+          select.appendChild(option);
+        });
+        select.value = state.activeTaskListId;
+      }
+
+      function createTaskList() {
+        const title = window.prompt("Name this to-do list", "New list");
+        if (title === null || !title.trim()) return;
+        ensureTaskLists(state);
+        const taskList = { id: uid("task-list"), title: title.trim().slice(0, 60) };
+        state.taskLists.push(taskList);
+        state.activeTaskListId = taskList.id;
+        activeFilter = "all";
+        saveState();
+        renderTasks();
+      }
+
       function renderTasks() {
-        const visible = state.tasks.filter((task) => activeFilter === "all" || task.status === activeFilter);
-        $("#task-count-note").textContent = `${visible.length} shown · ${state.tasks.length} total`;
+        renderTaskListMenu();
+        const listTasks = state.tasks.filter((task) => task.taskListId === state.activeTaskListId);
+        const visible = listTasks.filter((task) => activeFilter === "all" || task.status === activeFilter);
+        $("#task-count-note").textContent = `${visible.length} shown · ${listTasks.length} total`;
         const list = $("#task-list");
         if (!visible.length) {
           list.innerHTML = `<div class="empty-state">Nothing in this view. Add a task or change the filter.</div>`;
@@ -2662,7 +2727,8 @@
       $("#task-form").addEventListener("submit", (event) => {
         event.preventDefault();
         const form = new FormData(event.currentTarget);
-        const item = { id: uid("task"), title: form.get("title").trim(), subject: form.get("subject").trim(), due: form.get("due"), status: form.get("status") };
+        ensureTaskLists(state);
+        const item = { id: uid("task"), title: form.get("title").trim(), subject: form.get("subject").trim(), due: form.get("due"), status: form.get("status"), taskListId: state.activeTaskListId };
         if (!item.title) return;
         state.tasks.unshift(item);
         saveState("Task added to your list");
@@ -2684,6 +2750,14 @@
         trapNoteFocusTab(event);
       });
       $("#note-focus-backdrop").addEventListener("click", closeNoteFocus);
+
+      $("#task-list-select").addEventListener("change", (event) => {
+        state.activeTaskListId = event.currentTarget.value;
+        activeFilter = "all";
+        saveState();
+        renderTasks();
+      });
+      $("#task-add-list").addEventListener("click", createTaskList);
 
       $("#notes-page-select").addEventListener("change", (event) => {
         saveActiveNoteEditor();
