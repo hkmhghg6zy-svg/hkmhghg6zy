@@ -556,6 +556,9 @@
     .status-button.done { border-color: rgba(118, 149, 111, 0.30); color: var(--mint-deep); background: rgba(169, 197, 161, 0.12); }
     .delete-button { display: grid; width: 22px; height: 22px; place-items: center; border: 0; color: var(--faint); background: transparent; cursor: pointer; font-size: 13px; opacity: 0.35; }
     .task-row:hover .delete-button, .delete-button:focus-visible { opacity: 1; }
+    .task-row-actions { display: flex; align-items: center; gap: 2px; }
+    .task-edit-button { opacity: 0.35; }
+    .task-row:hover .task-edit-button, .task-edit-button:focus-visible { opacity: 1; }
     .delete-button:hover { color: var(--pink); }
 
     .notes-footer { display: flex; justify-content: space-between; gap: 10px; margin-top: 9px; color: var(--faint); font-size: 10px; }
@@ -996,16 +999,17 @@
     <form method="dialog" id="task-form">
       <div class="dialog-inner">
         <div class="dialog-heading">
-          <div><h2>Add a task</h2><p>Make the next action clear and manageable.</p></div>
+          <div><h2 id="task-dialog-title">Add a task</h2><p>Make the next action clear and manageable.</p></div>
           <button class="close-dialog" type="button" data-close-dialog="task-dialog" aria-label="Close">×</button>
         </div>
         <div class="form-grid">
+          <input id="task-id" name="id" type="hidden" />
           <div class="form-field full"><label for="task-title">Task</label><input id="task-title" name="title" required maxlength="100" placeholder="e.g. Read chapter three" /></div>
           <div class="form-field"><label for="task-subject">Subject / tag</label><input id="task-subject" name="subject" maxlength="28" placeholder="e.g. branding" /></div>
           <div class="form-field"><label for="task-due">Due date <span>(optional)</span></label><input id="task-due" name="due" type="date" /></div>
           <div class="form-field full"><label for="task-status">Status</label><select id="task-status" name="status"><option value="todo">not started</option><option value="in-progress">in progress</option><option value="done">done</option></select></div>
         </div>
-        <div class="dialog-actions"><button class="button" type="button" data-close-dialog="task-dialog">cancel</button><button class="button primary" type="submit">save task</button></div>
+        <div class="dialog-actions"><button class="button" type="button" data-close-dialog="task-dialog">cancel</button><button class="button primary" id="task-submit" type="submit">save task</button></div>
       </div>
     </form>
   </dialog>
@@ -2246,7 +2250,10 @@
               <button class="task-check ${task.status}" type="button" data-toggle-task="${task.id}" aria-label="Mark ${escapeHtml(task.title)} ${task.status === "done" ? "not done" : "done"}">${task.status === "done" ? "✓" : task.status === "in-progress" ? "·" : ""}</button>
               <div class="task-copy"><button class="task-title" type="button" data-toggle-task-details="${task.id}" aria-expanded="${expanded}" aria-label="${expanded ? "Collapse" : "Show full"} task: ${escapeHtml(task.title)}" title="${expanded ? "Collapse task" : "Show full task"}">${escapeHtml(task.title)}</button><div class="task-detail">${escapeHtml(task.subject || "general")} · ${due}</div></div>
               <button class="status-button ${task.status === "done" ? "done" : ""}" type="button" data-cycle-task="${task.id}">${statusText}</button>
-              <button class="delete-button" type="button" data-delete-task="${task.id}" aria-label="Delete ${escapeHtml(task.title)}">×</button>
+              <div class="task-row-actions">
+                <button class="edit-button task-edit-button" type="button" data-edit-task="${task.id}" aria-label="Edit ${escapeHtml(task.title)}" title="Edit task">✎</button>
+                <button class="delete-button" type="button" data-delete-task="${task.id}" aria-label="Delete ${escapeHtml(task.title)}">×</button>
+              </div>
             </div>`;
           }).join("");
         }
@@ -2426,9 +2433,17 @@
         setTimeout(() => $("#event-title").focus(), 40);
       }
 
-      function openTaskDialog() {
-        $("#task-form").reset();
-        $("#task-due").value = selectedDate;
+      function openTaskDialog(taskId = null) {
+        const form = $("#task-form");
+        form.reset();
+        const task = taskId ? state.tasks.find((item) => item.id === taskId) : null;
+        $("#task-id").value = task?.id || "";
+        $("#task-dialog-title").textContent = task ? "Edit task" : "Add a task";
+        $("#task-submit").textContent = task ? "save changes" : "save task";
+        $("#task-title").value = task?.title || "";
+        $("#task-subject").value = task?.subject || "";
+        $("#task-due").value = task?.due || (task ? "" : selectedDate);
+        $("#task-status").value = task?.status || "todo";
         openDialog("task-dialog");
         setTimeout(() => $("#task-title").focus(), 40);
       }
@@ -2533,6 +2548,8 @@
           renderTasks();
           return;
         }
+        const editTaskButton = event.target.closest("[data-edit-task]");
+        if (editTaskButton) { openTaskDialog(editTaskButton.dataset.editTask); return; }
         const toggleTask = event.target.closest("[data-toggle-task]");
         if (toggleTask) {
           const task = state.tasks.find((item) => item.id === toggleTask.dataset.toggleTask);
@@ -2728,10 +2745,13 @@
         event.preventDefault();
         const form = new FormData(event.currentTarget);
         ensureTaskLists(state);
-        const item = { id: uid("task"), title: form.get("title").trim(), subject: form.get("subject").trim(), due: form.get("due"), status: form.get("status"), taskListId: state.activeTaskListId };
+        const taskId = form.get("id");
+        const existing = taskId ? state.tasks.find((task) => task.id === taskId) : null;
+        const item = { id: taskId || uid("task"), title: form.get("title").trim(), subject: form.get("subject").trim(), due: form.get("due"), status: form.get("status"), taskListId: existing?.taskListId || state.activeTaskListId };
         if (!item.title) return;
-        state.tasks.unshift(item);
-        saveState("Task added to your list");
+        if (existing) Object.assign(existing, item);
+        else state.tasks.unshift(item);
+        saveState(existing ? "Task updated" : "Task added to your list");
         closeDialog("task-dialog");
         renderAll();
       });
