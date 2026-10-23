@@ -1318,10 +1318,21 @@
           offlineMode = false;
           showAuthScreen("Loading your planner from the cloud…");
           const localState = localStateForUser(user.id);
-          const { data: row, error } = await cloudClient.from("planner_data").select("data, updated_at").eq("user_id", user.id).maybeSingle();
+          let queryTimeout;
+          const queryResult = await Promise.race([
+            cloudClient.from("planner_data").select("data, updated_at").eq("user_id", user.id).maybeSingle(),
+            new Promise((resolve) => {
+              queryTimeout = setTimeout(() => resolve({
+                data: null,
+                error: new Error("The cloud planner did not respond within 20 seconds.")
+              }), 20000);
+            })
+          ]);
+          clearTimeout(queryTimeout);
+          const { data: row, error } = queryResult;
           if (error) {
             console.warn("Cloud load failed", error);
-            setAuthStatus("The cloud planner could not be loaded. Your local copy is still safe.", true);
+            setAuthStatus("The cloud planner could not be loaded. Check your connection, then refresh and sign in again.", true);
             return false;
           }
           const hasExistingCloudPlanner = Boolean(row?.data);
@@ -1360,6 +1371,10 @@
         })();
         try {
           return await cloudLoadPromise;
+        } catch (error) {
+          console.warn("Planner sign-in could not finish loading", error);
+          setAuthStatus("The planner could not finish loading. Check your connection, then refresh and sign in again.", true);
+          return false;
         } finally {
           cloudLoadPromise = null;
         }
@@ -2436,11 +2451,17 @@
         const sendFor = (event, eventDate, kind) => {
           const id = `${event.id}:${eventDate}:${kind}:${hourKey}`;
           if (sent[id]) return;
-          const notification = new Notification(`${kind === "tomorrow" ? "Tomorrow" : "Today"} · ${typeLabel(event.type)}`, {
-            body: `${event.title} · ${String(now.getHours()).padStart(2, "0")}:00`,
-            tag: `calendar-event-${event.id}-${eventDate}-${kind}-${now.getHours()}`,
-            icon: "Favicom.png"
-          });
+          let notification;
+          try {
+            notification = new Notification(`${kind === "tomorrow" ? "Tomorrow" : "Today"} · ${typeLabel(event.type)}`, {
+              body: `${event.title} · ${String(now.getHours()).padStart(2, "0")}:00`,
+              tag: `calendar-event-${event.id}-${eventDate}-${kind}-${now.getHours()}`,
+              icon: "Favicom.png"
+            });
+          } catch (error) {
+            console.warn("Could not display calendar reminder", error);
+            return;
+          }
           notification.onclick = () => { window.focus(); selectDate(eventDate); };
           sent[id] = true;
           try { localStorage.setItem(deadlineReminderStorageKey(), JSON.stringify(sent)); } catch (error) { console.warn("Could not save reminder status", error); }
@@ -2485,7 +2506,11 @@
         renderTasks();
         renderNotes();
         updateDeadlineReminderControl();
-        processCalendarEventReminders();
+        try {
+          processCalendarEventReminders();
+        } catch (error) {
+          console.warn("Calendar reminders could not be checked", error);
+        }
       }
 
       function openDialog(id) {
