@@ -380,6 +380,9 @@
     .panel-heading h2 code { color: var(--mint-deep); font-family: var(--mono); font-size: 12px; font-weight: 500; }
 
     .calendar-toolbar { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 7px; }
+    .deadline-reminder-control { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin-top: 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: rgba(255, 253, 247, 0.48); }
+    .deadline-reminder-control p { flex: 1; min-width: 180px; margin: 0; color: var(--muted); font-size: 10px; }
+    .deadline-reminder-status { color: var(--faint); font-family: var(--mono); font-size: 9px; }
     .month-title { min-width: 115px; color: var(--ink); font-family: var(--mono); font-size: 13px; text-align: center; }
     .icon-button {
       display: inline-grid;
@@ -827,6 +830,11 @@
             </div>
             <div class="calendar-grid" id="calendar-grid" aria-label="Month calendar"></div>
 
+            <div class="deadline-reminder-control">
+              <button class="button small" type="button" id="deadline-reminder-toggle">enable deadline reminders</button>
+              <p>System alerts at 9:00am the day before and on each deadline.</p>
+              <span class="deadline-reminder-status" id="deadline-reminder-status" aria-live="polite"></span>
+            </div>
             <div class="selected-day">
               <div class="selected-day-heading">
                 <h3 id="selected-day-title">selected day <span>·</span> today</h3>
@@ -1090,6 +1098,10 @@
       const APP_AUTO_RELOAD_RETRY = 60 * 1000;
       let appAutoReloadTimer = null;
       let appAutoReloadDueAt = Date.now() + APP_AUTO_RELOAD_INTERVAL;
+      const DEADLINE_REMINDER_HOUR = 9;
+      const DEADLINE_REMINDERS_KEY = `${STORAGE_KEY}:deadline-reminders`;
+      const DEADLINE_REMINDERS_ENABLED_KEY = `${STORAGE_KEY}:deadline-reminders-enabled`;
+      let deadlineReminderTimer = null;
 
       const $ = (selector) => document.querySelector(selector);
       const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -2364,6 +2376,108 @@
         $("#notes-input").focus();
       }
 
+      function deadlineReminderStorageKey() {
+        return `${DEADLINE_REMINDERS_KEY}:${cloudUser?.id || "offline"}`;
+      }
+
+      function deadlineReminderEnabledKey() {
+        return `${DEADLINE_REMINDERS_ENABLED_KEY}:${cloudUser?.id || "offline"}`;
+      }
+
+      function deadlineRemindersEnabled() {
+        return localStorage.getItem(deadlineReminderEnabledKey()) === "true";
+      }
+
+      function updateDeadlineReminderControl() {
+        const button = $("#deadline-reminder-toggle");
+        const status = $("#deadline-reminder-status");
+        if (!button || !status) return;
+        if (!("Notification" in window)) {
+          button.disabled = true;
+          button.textContent = "notifications unavailable";
+          status.textContent = "This browser does not support system notifications.";
+          return;
+        }
+        const enabled = deadlineRemindersEnabled();
+        button.disabled = Notification.permission === "denied";
+        button.textContent = enabled ? "turn off reminders" : "enable deadline reminders";
+        status.textContent = Notification.permission === "denied"
+          ? "Blocked in browser settings."
+          : enabled
+            ? "Enabled on this browser."
+            : Notification.permission === "granted"
+              ? "Allow alerts on this Mac."
+              : "Your browser will ask for permission.";
+      }
+
+      function deadlineOccurrences(event, firstKey, lastKey) {
+        const dates = [];
+        let key = event.date;
+        while (key <= lastKey) {
+          if (key >= firstKey) dates.push(key);
+          if (!event.repeat) break;
+          key = toDateKey(addDays(key, 7));
+        }
+        return dates;
+      }
+
+      function processDeadlineReminders() {
+        if (!deadlineRemindersEnabled() || !("Notification" in window) || Notification.permission !== "granted") return;
+        const now = new Date();
+        const todayKey = toDateKey(now);
+        const tomorrowKey = toDateKey(addDays(todayKey, 1));
+        let sent;
+        try {
+          sent = JSON.parse(localStorage.getItem(deadlineReminderStorageKey()) || "{}");
+        } catch {
+          sent = {};
+        }
+        const sendFor = (event, dueDate, kind) => {
+          const id = `${event.id}:${dueDate}:${kind}`;
+          if (sent[id]) return;
+          const notification = new Notification(kind === "tomorrow" ? "Assignment due tomorrow" : "Assignment due today", {
+            body: event.title,
+            tag: `deadline-${event.id}-${dueDate}-${kind}`,
+            icon: "Favicom.png"
+          });
+          notification.onclick = () => { window.focus(); selectDate(dueDate); };
+          sent[id] = true;
+          try { localStorage.setItem(deadlineReminderStorageKey(), JSON.stringify(sent)); } catch (error) { console.warn("Could not save deadline reminder status", error); }
+        };
+        state.events.filter((event) => event.type === "deadline" && event.date).forEach((event) => {
+          deadlineOccurrences(event, todayKey, tomorrowKey).forEach((dueDate) => {
+            if (dueDate === tomorrowKey) {
+              const reminderTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), DEADLINE_REMINDER_HOUR, 0, 0, 0);
+              if (now >= reminderTime) sendFor(event, dueDate, "tomorrow");
+            } else if (dueDate === todayKey) {
+              const reminderTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), DEADLINE_REMINDER_HOUR, 0, 0, 0);
+              if (now >= reminderTime) sendFor(event, dueDate, "today");
+            }
+          });
+        });
+      }
+
+      async function enableDeadlineReminders() {
+        if (!("Notification" in window)) return;
+        if (deadlineRemindersEnabled()) {
+          localStorage.setItem(deadlineReminderEnabledKey(), "false");
+          updateDeadlineReminderControl();
+          showToast("Deadline reminders turned off");
+          return;
+        }
+        let permission = Notification.permission;
+        if (permission === "default") permission = await Notification.requestPermission();
+        if (permission !== "granted") {
+          updateDeadlineReminderControl();
+          showToast(permission === "denied" ? "Allow notifications in your browser settings" : "Notification permission was not granted");
+          return;
+        }
+        localStorage.setItem(deadlineReminderEnabledKey(), "true");
+        updateDeadlineReminderControl();
+        processDeadlineReminders();
+        showToast("Deadline reminders enabled on this browser");
+      }
+
       function renderAll() {
         renderHeader();
         renderSummary();
@@ -2374,6 +2488,8 @@
         renderDeadlines();
         renderTasks();
         renderNotes();
+        updateDeadlineReminderControl();
+        processDeadlineReminders();
       }
 
       function openDialog(id) {
@@ -2691,6 +2807,7 @@
       $("#nudge-trigger").addEventListener("mouseenter", showEncouragement);
       $("#nudge-trigger").addEventListener("focus", showEncouragement);
       $("#nudge-trigger").addEventListener("click", showEncouragement);
+      $("#deadline-reminder-toggle").addEventListener("click", enableDeadlineReminders);
 
       $("#calendar-file-input").addEventListener("change", async (event) => {
         const file = event.target.files?.[0];
@@ -2798,6 +2915,10 @@
 
       renderAll();
       setInterval(renderClock, 1000);
+      deadlineReminderTimer = setInterval(processDeadlineReminders, 60 * 1000);
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") processDeadlineReminders();
+      });
       setInterval(showEncouragement, ENCOURAGEMENT_INTERVAL);
       initialiseCloud();
       scheduleAutoReload();
