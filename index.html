@@ -2764,13 +2764,27 @@
         const button = $("#auth-submit");
         button.disabled = true;
         setAuthStatus("Signing in…");
-        const { error } = await cloudClient.auth.signInWithPassword({
-          email: $("#auth-email").value.trim(),
-          password: $("#auth-password").value
-        });
-        if (error) setAuthStatus(error.message || "Those login details were not accepted.", true);
-        else setAuthStatus("Signed in · loading your planner…");
-        button.disabled = false;
+        try {
+          const { data, error } = await cloudClient.auth.signInWithPassword({
+            email: $("#auth-email").value.trim(),
+            password: $("#auth-password").value
+          });
+          if (error) {
+            setAuthStatus(error.message || "Those login details were not accepted.", true);
+            return;
+          }
+          if (!data?.user) {
+            setAuthStatus("Sign-in succeeded, but your account details could not be loaded. Please try again.", true);
+            return;
+          }
+          setAuthStatus("Signed in · loading your planner…");
+          await loadCloudForUser(data.user);
+        } catch (error) {
+          console.warn("Sign-in or planner load failed", error);
+          setAuthStatus(error?.message || "Sign-in could not finish. Check your connection and try again.", true);
+        } finally {
+          button.disabled = false;
+        }
       });
       $("[data-show-reset-request]").addEventListener("click", () => {
         $("#reset-email").value = $("#auth-email").value.trim();
