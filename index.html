@@ -1247,12 +1247,26 @@
           return true;
         }
         cloudSyncInFlight = true;
-        const { error } = await cloudClient.from("planner_data").upsert({
-          user_id: cloudUser.id,
-          data: copyPlannerState(state),
-          updated_at: new Date().toISOString()
-        }, { onConflict: "user_id" });
-        cloudSyncInFlight = false;
+        let error;
+        let syncTimeout;
+        try {
+          const result = await Promise.race([
+            cloudClient.from("planner_data").upsert({
+              user_id: cloudUser.id,
+              data: copyPlannerState(state),
+              updated_at: new Date().toISOString()
+            }, { onConflict: "user_id" }),
+            new Promise((resolve) => {
+              syncTimeout = setTimeout(() => resolve({ error: new Error("Cloud saving did not respond within 20 seconds.") }), 20000);
+            })
+          ]);
+          error = result.error;
+        } catch (syncError) {
+          error = syncError;
+        } finally {
+          clearTimeout(syncTimeout);
+          cloudSyncInFlight = false;
+        }
         if (error) {
           console.warn("Cloud save failed", error);
           setStorageStatus("cloud save failed · local copy kept", "offline");
