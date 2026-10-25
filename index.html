@@ -2251,13 +2251,19 @@
       function renderTaskListMenu() {
         ensureTaskLists(state);
         const select = $("#task-list-select");
-        select.innerHTML = "";
-        state.taskLists.forEach((taskList) => {
-          const option = document.createElement("option");
-          option.value = taskList.id;
-          option.textContent = taskList.title;
-          select.appendChild(option);
-        });
+        const optionsMatch = select.options.length === state.taskLists.length
+          && state.taskLists.every((taskList, index) =>
+            select.options[index].value === taskList.id
+            && select.options[index].textContent === taskList.title
+          );
+        if (!optionsMatch) {
+          select.replaceChildren(...state.taskLists.map((taskList) => {
+            const option = document.createElement("option");
+            option.value = taskList.id;
+            option.textContent = taskList.title;
+            return option;
+          }));
+        }
         select.value = state.activeTaskListId;
       }
 
@@ -2309,13 +2315,19 @@
         ensureNotePages(state);
         const select = $("#notes-page-select");
         const selectedId = state.activeNotePageId;
-        select.innerHTML = "";
-        state.notePages.forEach((page) => {
-          const option = document.createElement("option");
-          option.value = page.id;
-          option.textContent = page.title;
-          select.appendChild(option);
-        });
+        const optionsMatch = select.options.length === state.notePages.length
+          && state.notePages.every((page, index) =>
+            select.options[index].value === page.id
+            && select.options[index].textContent === page.title
+          );
+        if (!optionsMatch) {
+          select.replaceChildren(...state.notePages.map((page) => {
+            const option = document.createElement("option");
+            option.value = page.id;
+            option.textContent = page.title;
+            return option;
+          }));
+        }
         select.value = selectedId;
         const page = activeNotePage();
         const input = $("#notes-input");
@@ -2946,8 +2958,10 @@
       $("#task-add-list").addEventListener("click", createTaskList);
 
       $("#notes-page-select").addEventListener("change", (event) => {
+        const nextPageId = event.currentTarget.value;
         saveActiveNoteEditor();
-        state.activeNotePageId = event.currentTarget.value;
+        $("#notes-input").blur();
+        state.activeNotePageId = nextPageId;
         saveState();
         renderNotes();
       });
