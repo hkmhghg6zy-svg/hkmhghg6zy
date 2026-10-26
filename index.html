@@ -969,7 +969,7 @@
           <div class="form-field full" id="repeat-until-field" hidden><label for="event-repeat-until">End the event at date <span>(optional)</span></label><input id="event-repeat-until" name="repeatUntil" type="date" /><span class="form-help">Leave blank if this weekly event has no end date.</span></div>
           <div class="form-field full"><label for="event-notes">Notes <span>(optional)</span></label><textarea id="event-notes" name="notes" maxlength="180" placeholder="Room, reading, submission link..."></textarea></div>
         </div>
-        <div class="dialog-actions"><button class="button" type="button" data-close-dialog="event-dialog">cancel</button><button class="button danger" id="event-delete" type="button" data-delete-event hidden>delete event</button><button class="button primary" id="event-submit" type="submit">save event</button></div>
+        <div class="dialog-actions"><button class="button" type="button" data-close-dialog="event-dialog">cancel</button><button class="button danger" id="event-delete" type="button" data-delete-event hidden>delete event</button><button class="button primary" id="event-submit" type="button">save event</button></div>
       </div>
     </form>
   </dialog>
@@ -2884,11 +2884,11 @@
       });
 
       function saveEventFromDialog() {
-        const form = $("#event-form");
-        if (!form.reportValidity()) return;
         const id = $("#event-id").value.trim();
         const date = $("#event-date").value;
         const title = $("#event-title").value.trim();
+        if (!title) { showToast("Please enter an event title"); $("#event-title").focus(); return; }
+        if (!date) { showToast("Please choose an event date"); $("#event-date").focus(); return; }
         const repeat = $("#event-repeat").checked;
         const item = {
           id: id || uid("event"),
@@ -2921,10 +2921,7 @@
         renderAll();
       }
 
-      $("#event-form").addEventListener("submit", (event) => {
-        event.preventDefault();
-        saveEventFromDialog();
-      });
+
 
       $("#class-note-form").addEventListener("submit", (event) => {
         event.preventDefault();
@@ -2972,22 +2969,39 @@
       });
       $("#note-focus-backdrop").addEventListener("click", closeNoteFocus);
 
-      $("#task-list-select").addEventListener("change", (event) => {
-        state.activeTaskListId = event.currentTarget.value;
-        activeFilter = "all";
-        saveState();
-        renderTasks();
-      });
+      document.addEventListener("change", (event) => {
+        const taskListSelect = event.target.closest("#task-list-select");
+        if (taskListSelect) {
+          const nextListId = taskListSelect.value;
+          if (nextListId === state.activeTaskListId) return;
+          state.activeTaskListId = nextListId;
+          activeFilter = "all";
+          saveState();
+          renderTasks();
+          return;
+        }
+        const notesPageSelect = event.target.closest("#notes-page-select");
+        if (notesPageSelect) {
+          const nextPageId = notesPageSelect.value;
+          if (nextPageId === state.activeNotePageId) return;
+          saveActiveNoteEditor();
+          $("#notes-input").blur();
+          state.activeNotePageId = nextPageId;
+          saveState();
+          renderNotes();
+        }
+      }, true);
+      document.addEventListener("click", (event) => {
+        if (!event.target.closest("#event-submit")) return;
+        event.preventDefault();
+        saveEventFromDialog();
+      }, true);
+      document.addEventListener("submit", (event) => {
+        if (!event.target.matches("#event-form")) return;
+        event.preventDefault();
+        saveEventFromDialog();
+      }, true);
       $("#task-add-list").addEventListener("click", createTaskList);
-
-      $("#notes-page-select").addEventListener("change", (event) => {
-        const nextPageId = event.currentTarget.value;
-        saveActiveNoteEditor();
-        $("#notes-input").blur();
-        state.activeNotePageId = nextPageId;
-        saveState();
-        renderNotes();
-      });
       $("#notes-add-page").addEventListener("click", createNotePage);
       $("#notes-input").addEventListener("input", () => {
         saveActiveNoteEditor();
