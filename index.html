@@ -968,7 +968,7 @@
           <div class="form-field full" id="repeat-until-field" hidden><label for="event-repeat-until">End the event at date <span>(optional)</span></label><input id="event-repeat-until" name="repeatUntil" type="date" /><span class="form-help">Leave blank if this weekly event has no end date.</span></div>
           <div class="form-field full"><label for="event-notes">Notes <span>(optional)</span></label><textarea id="event-notes" name="notes" maxlength="180" placeholder="Room, reading, submission link..."></textarea></div>
         </div>
-        <div class="dialog-actions"><button class="button" type="button" data-close-dialog="event-dialog">cancel</button><button class="button danger" id="event-delete" type="button" data-delete-event hidden>delete event</button><button class="button primary" id="event-submit" type="button">save event</button></div>
+        <div class="dialog-actions"><button class="button" type="button" data-close-dialog="event-dialog">cancel</button><button class="button danger" id="event-delete" type="button" data-delete-event hidden>delete event</button><button class="button primary" id="event-submit" type="submit">save event</button></div>
       </div>
     </form>
   </dialog>
@@ -2920,7 +2920,6 @@
         renderAll();
       }
 
-      $("#event-submit").addEventListener("click", saveEventFromDialog);
       $("#event-form").addEventListener("submit", (event) => {
         event.preventDefault();
         saveEventFromDialog();
