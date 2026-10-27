@@ -889,6 +889,7 @@
               <label for="task-list-select">List</label>
               <select id="task-list-select" aria-label="Select a to-do list"></select>
               <button class="button small" id="task-add-list" type="button">＋ new list</button>
+              <button class="button small ghost" id="task-delete-list" type="button">delete list</button>
             </div>
             <div class="task-toolbar">
               <div class="filter-list" role="group" aria-label="Task filters">
@@ -913,6 +914,7 @@
                 <label for="notes-page-select">Page</label>
                 <select id="notes-page-select" aria-label="Select a notes page"></select>
                 <button class="button small" id="notes-add-page" type="button">＋ new page</button>
+                <button class="button small ghost" id="notes-delete-page" type="button">delete page</button>
               </div>
               <div class="note-toolbar" role="toolbar" aria-label="General note formatting">
                 <button class="note-tool" type="button" data-note-command="bold" title="Bold" aria-label="Bold"><strong>B</strong></button>
@@ -2267,6 +2269,9 @@
           }));
         }
         select.value = state.activeTaskListId;
+        const deleteButton = $("#task-delete-list");
+        deleteButton.disabled = state.taskLists.length <= 1;
+        deleteButton.title = deleteButton.disabled ? "Keep at least one to-do list" : "Delete this list and its tasks";
       }
 
       function createTaskList() {
@@ -2278,6 +2283,23 @@
         state.activeTaskListId = taskList.id;
         activeFilter = "all";
         saveState();
+        renderTasks();
+      }
+
+      function deleteTaskList() {
+        ensureTaskLists(state);
+        const taskList = state.taskLists.find((item) => item.id === state.activeTaskListId);
+        if (!taskList || state.taskLists.length <= 1) return;
+        const taskCount = state.tasks.filter((task) => task.taskListId === taskList.id).length;
+        const detail = taskCount
+          ? ` This will also permanently delete ${taskCount} task${taskCount === 1 ? "" : "s"} in this list.`
+          : "";
+        if (!window.confirm(`Delete “${taskList.title}”?${detail}`)) return;
+        state.tasks = state.tasks.filter((task) => task.taskListId !== taskList.id);
+        state.taskLists = state.taskLists.filter((item) => item.id !== taskList.id);
+        state.activeTaskListId = state.taskLists[0].id;
+        activeFilter = "all";
+        saveState("To-do list deleted");
         renderTasks();
       }
 
@@ -2331,6 +2353,9 @@
           }));
         }
         select.value = selectedId;
+        const deleteButton = $("#notes-delete-page");
+        deleteButton.disabled = state.notePages.length <= 1;
+        deleteButton.title = deleteButton.disabled ? "Keep at least one notes page" : "Delete this page and its notes";
         const page = activeNotePage();
         const input = $("#notes-input");
         input.setAttribute("aria-label", `${page.title} notes`);
@@ -2339,6 +2364,18 @@
           input.style.height = "229px";
           input.innerHTML = noteHtml(page.content || "");
         }
+      }
+
+      function deleteNotePage() {
+        saveActiveNoteEditor();
+        const page = state.notePages.find((item) => item.id === state.activeNotePageId);
+        if (!page || state.notePages.length <= 1) return;
+        if (!window.confirm(`Delete “${page.title}” and all the notes on it?`)) return;
+        state.notePages = state.notePages.filter((item) => item.id !== page.id);
+        state.activeNotePageId = state.notePages[0].id;
+        state.notes = state.notePages[0].content;
+        saveState("Notes page deleted");
+        renderNotes();
       }
 
       function resetGeneralNotesEditorHeight() {
@@ -3003,7 +3040,9 @@
         saveEventFromDialog();
       }, true);
       $("#task-add-list").addEventListener("click", createTaskList);
+      $("#task-delete-list").addEventListener("click", deleteTaskList);
       $("#notes-add-page").addEventListener("click", createNotePage);
+      $("#notes-delete-page").addEventListener("click", deleteNotePage);
       $("#notes-input").addEventListener("input", () => {
         saveActiveNoteEditor();
         expandGeneralNotesEditor();
