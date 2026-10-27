@@ -832,8 +832,8 @@
             <div class="calendar-grid" id="calendar-grid" aria-label="Month calendar"></div>
 
             <div class="deadline-reminder-control">
-              <button class="button small" type="button" id="deadline-reminder-toggle">enable hourly reminders</button>
-              <p>Hourly system alerts all day on the day before and date of every calendar event.</p>
+              <button class="button small" type="button" id="deadline-reminder-toggle">enable deadline reminders</button>
+              <p>System alerts at 9:00am the day before and on each deadline.</p>
               <span class="deadline-reminder-status" id="deadline-reminder-status" aria-live="polite"></span>
             </div>
             <div class="selected-day">
@@ -1099,6 +1099,7 @@
       const APP_AUTO_RELOAD_RETRY = 60 * 1000;
       let appAutoReloadTimer = null;
       let appAutoReloadDueAt = Date.now() + APP_AUTO_RELOAD_INTERVAL;
+      const DEADLINE_REMINDER_HOUR = 9;
       const DEADLINE_REMINDERS_KEY = `${STORAGE_KEY}:deadline-reminders`;
       const DEADLINE_REMINDERS_ENABLED_KEY = `${STORAGE_KEY}:deadline-reminders-enabled`;
       let deadlineReminderTimer = null;
@@ -2441,7 +2442,7 @@
         }
         const enabled = deadlineRemindersEnabled();
         button.disabled = Notification.permission === "denied";
-        button.textContent = enabled ? "turn off reminders" : "enable hourly reminders";
+        button.textContent = enabled ? "turn off reminders" : "enable deadline reminders";
         status.textContent = Notification.permission === "denied"
           ? "Blocked in browser settings."
           : enabled
@@ -2451,7 +2452,7 @@
               : "Your browser will ask for permission.";
       }
 
-      function calendarEventOccurrences(event, firstKey, lastKey) {
+      function deadlineOccurrences(event, firstKey, lastKey) {
         const dates = [];
         let key = event.date;
         while (key <= lastKey) {
@@ -2463,50 +2464,50 @@
         return dates;
       }
 
-      function processCalendarEventReminders() {
+      function processDeadlineReminders() {
         if (!deadlineRemindersEnabled() || !("Notification" in window) || Notification.permission !== "granted") return;
         const now = new Date();
         const todayKey = toDateKey(now);
         const tomorrowKey = toDateKey(addDays(todayKey, 1));
-        const hourKey = `${todayKey}T${String(now.getHours()).padStart(2, "0")}`;
+        const reminderTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), DEADLINE_REMINDER_HOUR, 0, 0, 0);
+        if (now < reminderTime) return;
         let sent;
         try {
           sent = JSON.parse(localStorage.getItem(deadlineReminderStorageKey()) || "{}");
         } catch {
           sent = {};
         }
-        const sendFor = (event, eventDate, kind) => {
-          const id = `${event.id}:${eventDate}:${kind}:${hourKey}`;
+        const sendFor = (event, dueDate, kind) => {
+          const id = event.id + ":" + dueDate + ":" + kind;
           if (sent[id]) return;
           let notification;
           try {
-            notification = new Notification(`${kind === "tomorrow" ? "Tomorrow" : "Today"} · ${typeLabel(event.type)}`, {
-              body: `${event.title} · ${String(now.getHours()).padStart(2, "0")}:00`,
-              tag: `calendar-event-${event.id}-${eventDate}-${kind}-${now.getHours()}`,
+            notification = new Notification(kind === "tomorrow" ? "Assignment due tomorrow" : "Assignment due today", {
+              body: event.title,
+              tag: "deadline-" + event.id + "-" + dueDate + "-" + kind,
               icon: "Favicom.png"
             });
           } catch (error) {
-            console.warn("Could not display calendar reminder", error);
+            console.warn("Could not display deadline reminder", error);
             return;
           }
-          notification.onclick = () => { window.focus(); selectDate(eventDate); };
+          notification.onclick = () => { window.focus(); selectDate(dueDate); };
           sent[id] = true;
-          try { localStorage.setItem(deadlineReminderStorageKey(), JSON.stringify(sent)); } catch (error) { console.warn("Could not save reminder status", error); }
+          try { localStorage.setItem(deadlineReminderStorageKey(), JSON.stringify(sent)); } catch (error) { console.warn("Could not save deadline reminder status", error); }
         };
-        state.events.filter((event) => event.date).forEach((event) => {
-          calendarEventOccurrences(event, todayKey, tomorrowKey).forEach((eventDate) => {
-            if (eventDate === tomorrowKey) sendFor(event, eventDate, "tomorrow");
-            else if (eventDate === todayKey) sendFor(event, eventDate, "today");
+        state.events.filter((event) => event.type === "deadline" && event.date).forEach((event) => {
+          deadlineOccurrences(event, todayKey, tomorrowKey).forEach((dueDate) => {
+            if (dueDate === tomorrowKey) sendFor(event, dueDate, "tomorrow");
+            else if (dueDate === todayKey) sendFor(event, dueDate, "today");
           });
         });
       }
-
       async function enableDeadlineReminders() {
         if (!("Notification" in window)) return;
         if (deadlineRemindersEnabled()) {
           localStorage.setItem(deadlineReminderEnabledKey(), "false");
           updateDeadlineReminderControl();
-          showToast("Event reminders turned off");
+          showToast("Deadline reminders turned off");
           return;
         }
         let permission = Notification.permission;
@@ -2518,8 +2519,8 @@
         }
         localStorage.setItem(deadlineReminderEnabledKey(), "true");
         updateDeadlineReminderControl();
-        processCalendarEventReminders();
-        showToast("Hourly event reminders enabled on this browser");
+        processDeadlineReminders();
+        showToast("Deadline reminders enabled on this browser");
       }
 
       function renderAll() {
@@ -2534,7 +2535,7 @@
         renderNotes();
         updateDeadlineReminderControl();
         try {
-          processCalendarEventReminders();
+          processDeadlineReminders();
         } catch (error) {
           console.warn("Calendar reminders could not be checked", error);
         }
@@ -2869,7 +2870,7 @@
       $("#nudge-trigger").addEventListener("mouseenter", showEncouragement);
       $("#nudge-trigger").addEventListener("focus", showEncouragement);
       $("#nudge-trigger").addEventListener("click", showEncouragement);
-      $("#deadline-reminder-toggle").addEventListener("click", enableCalendarEventReminders);
+      $("#deadline-reminder-toggle").addEventListener("click", enableDeadlineReminders);
 
       $("#calendar-file-input").addEventListener("change", async (event) => {
         const file = event.target.files?.[0];
@@ -3015,9 +3016,9 @@
 
       renderAll();
       setInterval(renderClock, 1000);
-      deadlineReminderTimer = setInterval(processCalendarEventReminders, 60 * 1000);
+      deadlineReminderTimer = setInterval(processDeadlineReminders, 60 * 1000);
       document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "visible") processCalendarEventReminders();
+        if (document.visibilityState === "visible") processDeadlineReminders();
       });
       setInterval(showEncouragement, ENCOURAGEMENT_INTERVAL);
       initialiseCloud();
