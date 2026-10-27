@@ -1225,16 +1225,26 @@
         return JSON.parse(JSON.stringify(value));
       }
 
+      function preserveClassNotes(value) {
+        if (!value || typeof value !== "object") return value;
+        if (!value.classNotes || typeof value.classNotes !== "object" || Array.isArray(value.classNotes)) value.classNotes = {};
+        if (value.classNotesVersion !== CLASS_NOTES_VERSION) {
+          (Array.isArray(value.events) ? value.events : []).forEach((event) => {
+            if (!event?.repeat || !event.id || !event.date || !Object.prototype.hasOwnProperty.call(value.classNotes, event.id)) return;
+            const firstOccurrenceKey = `${event.id}::${event.date}`;
+            const oldNote = value.classNotes[event.id];
+            if (!Object.prototype.hasOwnProperty.call(value.classNotes, firstOccurrenceKey) && noteText(oldNote).trim()) {
+              value.classNotes[firstOccurrenceKey] = oldNote;
+            }
+          });
+          value.classNotesVersion = CLASS_NOTES_VERSION;
+        }
+        return value;
+      }
+
       function normalisePlannerState(saved) {
         if (!saved || !Array.isArray(saved.events) || !Array.isArray(saved.tasks)) return emptyState();
-        const loaded = {
-          ...saved,
-          classNotes: saved.classNotes && typeof saved.classNotes === "object" && !Array.isArray(saved.classNotes) ? saved.classNotes : {}
-        };
-        if (loaded.classNotesVersion !== CLASS_NOTES_VERSION) {
-          loaded.classNotes = {};
-          loaded.classNotesVersion = CLASS_NOTES_VERSION;
-        }
+        const loaded = preserveClassNotes({ ...saved });
         return ensureTaskLists(ensureNotePages(loaded));
       }
 
@@ -1242,6 +1252,31 @@
         const currentOwner = localStorage.getItem(CLOUD_OWNER_KEY);
         if (currentOwner && currentOwner !== userId) return emptyState();
         return copyPlannerState(state);
+      }
+
+      function localBackupForUser(userId) {
+        try {
+          const saved = JSON.parse(localStorage.getItem(`${STORAGE_KEY}:local-backup:${userId}`) || "null");
+          if (!saved || !Array.isArray(saved.events) || !Array.isArray(saved.tasks)) return null;
+          return normalisePlannerState(saved);
+        } catch {
+          return null;
+        }
+      }
+
+      function restoreMissingClassNotes(target, source) {
+        if (!target || !source || !source.classNotes || typeof source.classNotes !== "object") return false;
+        if (!target.classNotes || typeof target.classNotes !== "object") target.classNotes = {};
+        let restored = false;
+        Object.entries(source.classNotes).forEach(([key, note]) => {
+          if (!noteText(note).trim()) return;
+          if (!noteText(target.classNotes[key] || "").trim()) {
+            target.classNotes[key] = note;
+            restored = true;
+          }
+        });
+        if (restored) target.classNotesVersion = CLASS_NOTES_VERSION;
+        return restored;
       }
 
       async function syncCloudNow() {
@@ -1336,6 +1371,8 @@
           offlineMode = false;
           showAuthScreen("Loading your planner from the cloud…");
           const localState = localStateForUser(user.id);
+          const localBackup = localBackupForUser(user.id);
+          let recoveredClassNotes = restoreMissingClassNotes(localState, localBackup);
           let queryTimeout;
           const queryResult = await Promise.race([
             cloudClient.from("planner_data").select("data, updated_at").eq("user_id", user.id).maybeSingle(),
@@ -1360,6 +1397,7 @@
             if (plannerHasContent(localState) && JSON.stringify(localState) !== JSON.stringify(remoteState)) {
               localStorage.setItem(`${STORAGE_KEY}:local-backup:${user.id}`, JSON.stringify(localState));
             }
+            recoveredClassNotes = restoreMissingClassNotes(remoteState, localState) || recoveredClassNotes;
             state = remoteState;
           } else {
             state = localState;
@@ -1372,7 +1410,7 @@
           }
           localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
           localStorage.setItem(CLOUD_OWNER_KEY, user.id);
-          if (!plannerHasContent(remoteState)) {
+          if (!plannerHasContent(remoteState) || recoveredClassNotes) {
             const uploaded = await syncCloudNow();
             if (!uploaded) {
               setAuthStatus("Cloud saving failed. Your local copy is still safe.", true);
@@ -1384,6 +1422,7 @@
           setEditorSaveStatus("saved to cloud");
           if (tutorialMigrationNeedsSave) saveState();
           renderAll();
+          if (recoveredClassNotes) showToast("Recovered lecture notes from this browser’s saved copy");
           showWelcomeScreen();
           return true;
         })();
@@ -1430,7 +1469,7 @@
       }
 
       let state = loadState();
-      if (restoredLegacyData) showToast(retainedLegacyClassNotes ? "Older class notes remain in the untouched shared backup" : "Older planner data copied to your separate storage");
+      if (restoredLegacyData) showToast(retainedLegacyClassNotes ? "Older class notes were preserved" : "Older planner data copied to your separate storage");
 
       function enterPlanner() {
         $("#welcome-screen").hidden = true;
@@ -1733,11 +1772,7 @@
               ...saved,
               classNotes: saved.classNotes && typeof saved.classNotes === "object" && !Array.isArray(saved.classNotes) ? saved.classNotes : {}
             };
-            // Start the per-lecture notes system cleanly; calendar, task and general note data stay intact.
-            if (loaded.classNotesVersion !== CLASS_NOTES_VERSION) {
-              loaded.classNotes = {};
-              loaded.classNotesVersion = CLASS_NOTES_VERSION;
-            }
+            preserveClassNotes(loaded);
             ensureTaskLists(ensureNotePages(loaded));
             const hasPlannerData = loaded.events.length > 0 || loaded.tasks.length > 0 || loaded.taskLists.length > 1 || valueHasNoteContent(loaded) || Object.keys(loaded.classNotes).length > 0;
             if (isUsingLegacyData && hasPlannerData) {
